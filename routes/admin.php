@@ -1,0 +1,19 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Support\Facades\Route;
+use Padosoft\Iam\Agents\Http\Controllers\Admin\AgentsController;
+use Padosoft\Iam\Agents\Http\Controllers\Admin\DelegationGrantsController;
+
+// Admin API del modulo agents: stesso stack del server (iam.admin_auth/iam.can/
+// iam.idempotency applicati dal provider e per-route). Permission slug dedicati.
+Route::get('agents', [AgentsController::class, 'index'])->middleware('iam.can:iam:agents.manage');
+Route::post('agents', [AgentsController::class, 'store'])->middleware('iam.can:iam:agents.manage');
+Route::get('agents/{id}', [AgentsController::class, 'show'])->middleware('iam.can:iam:agents.manage');
+Route::post('agents/{id}/approve', [AgentsController::class, 'approve'])->middleware('iam.can:iam:agents.manage');
+Route::post('agents/{id}/suspend', [AgentsController::class, 'suspend'])->middleware('iam.can:iam:agents.manage');
+Route::post('agents/{id}/retire', [AgentsController::class, 'retire'])->middleware('iam.can:iam:agents.manage');
+
+Route::get('delegation-grants', [DelegationGrantsController::class, 'index'])->middleware('iam.can:iam:delegations.manage');
+Route::post('delegation-grants/{id}/revoke', [DelegationGrantsController::class, 'revoke'])->middleware('iam.can:iam:delegations.manage');
