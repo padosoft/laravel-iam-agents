@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
 use Padosoft\Iam\Agents\Http\Controllers\Admin\AgentsController;
+use Padosoft\Iam\Agents\Http\Controllers\Admin\DelegatedDecisionsController;
 use Padosoft\Iam\Agents\Http\Controllers\Admin\DelegationGrantsController;
 
 // Admin API del modulo agents: stesso stack del server (iam.admin_auth/iam.can/
@@ -17,3 +18,6 @@ Route::post('agents/{id}/retire', [AgentsController::class, 'retire'])->middlewa
 
 Route::get('delegation-grants', [DelegationGrantsController::class, 'index'])->middleware('iam.can:iam:delegations.manage');
 Route::post('delegation-grants/{id}/revoke', [DelegationGrantsController::class, 'revoke'])->middleware('iam.can:iam:delegations.manage');
+
+// Decisioni delegate per i PEP: stessa permission del check single-subject del server.
+Route::post('decisions/check-delegated', [DelegatedDecisionsController::class, 'check'])->middleware('iam.can:iam:decisions.check');
