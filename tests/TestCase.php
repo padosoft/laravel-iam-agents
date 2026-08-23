@@ -7,6 +7,7 @@ namespace Padosoft\Iam\Agents\Tests;
 use Illuminate\Foundation\Application;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Padosoft\Iam\Agents\IamAgentsServiceProvider;
+use Padosoft\Iam\Domain\Audit\Webhooks\WebhookUrlGuard;
 use Padosoft\Iam\IamServiceProvider;
 
 abstract class TestCase extends Orchestra
@@ -49,5 +50,13 @@ abstract class TestCase extends Orchestra
             'authorization_code' => true,
             'refresh_token' => true,
         ]);
+
+        // Come nel TestCase del server: l'URL-guard dei webhook risolve l'hostname (difesa
+        // DNS-rebinding) e i test usano host non risolvibili (pep.test) — resolver
+        // deterministico su IP pubblico così il guard non li blocca.
+        $app->bind(
+            WebhookUrlGuard::class,
+            fn (): WebhookUrlGuard => new WebhookUrlGuard(fn (string $host): array => ['93.184.216.34']),
+        );
     }
 }

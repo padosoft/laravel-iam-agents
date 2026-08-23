@@ -7,13 +7,18 @@ namespace Padosoft\Iam\Agents\Audit;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
-use Padosoft\Iam\Domain\Audit\AuditChainAppender;
+use Padosoft\Iam\Domain\Audit\Pii\AuditRecorder;
 
 /**
  * Emettitore dell'audit di delega: stream dedicato `delegation` sulla hash-chain
  * tamper-evident del server (stesso store, parallelo allo `stream=ai` di iam-ai).
  * Risponde a "chi ha fatto cosa, per conto di chi": ogni evento porta
  * actor_agent_id + il subject delegante nel metadata.
+ *
+ * Passa dall'AuditRecorder del server (non dall'appender diretto): oltre alla
+ * sigillatura in catena, ogni evento viene così SPINTO alle subscription webhook
+ * attive (P2) — è il canale con cui una revoca di grant raggiunge PEP e agent
+ * senza attendere un poll.
  *
  * NB naming metadata: `grant_id`/`*_confirmation_id` — MAI chiavi con substring
  * `token` (l'admin API redige per substring).
@@ -22,11 +27,11 @@ final class DelegationAudit
 {
     public const STREAM = 'delegation';
 
-    public function __construct(private readonly AuditChainAppender $chain) {}
+    public function __construct(private readonly AuditRecorder $recorder) {}
 
     public function agentRegistered(Agent $agent, string $via): void
     {
-        $this->chain->append([
+        $this->recorder->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.agent.registered',
             'actor_agent_id' => $agent->id,
@@ -39,7 +44,7 @@ final class DelegationAudit
 
     public function agentLifecycle(Agent $agent, string $transition, ?SubjectRef $by = null): void
     {
-        $this->chain->append([
+        $this->recorder->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.agent.'.$transition,
             'actor_user_id' => $by?->type === 'user' ? $by->id : null,
@@ -53,7 +58,7 @@ final class DelegationAudit
 
     public function grantCreated(DelegationGrantModel $grant): void
     {
-        $this->chain->append([
+        $this->recorder->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.grant.created',
             'actor_user_id' => $grant->user_type === 'user' ? $grant->user_id : null,
@@ -74,7 +79,7 @@ final class DelegationAudit
 
     public function grantRevoked(DelegationGrantModel $grant, SubjectRef $revokedBy): void
     {
-        $this->chain->append([
+        $this->recorder->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.grant.revoked',
             'actor_user_id' => $revokedBy->type === 'user' ? $revokedBy->id : null,
@@ -97,7 +102,7 @@ final class DelegationAudit
      */
     public function exchange(string $agentId, ?string $userSubject, bool $issued, array $scopes = [], ?string $grantId = null, ?string $refusalReason = null): void
     {
-        $this->chain->append([
+        $this->recorder->record([
             'stream' => self::STREAM,
             'event_type' => $issued ? 'iam.delegation.exchange.issued' : 'iam.delegation.exchange.refused',
             'actor_agent_id' => $agentId,

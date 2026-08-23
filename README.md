@@ -199,7 +199,8 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 |---|---|
 | RFC 8693 exchange, act claim, intersection PDP, consent, revocation, audit | **Active** |
 | Gated DCR + auth.md discovery | **Active** (off by default, human approval only) |
-| Multi-hop `act` chains, revocation push, budget-bounded delegation, JIT elevation | Emerging (v2) |
+| Revocation push — every `delegation` stream event (grant revoked, exchange refused, lifecycle) is pushed to the server's signed webhook subscriptions the moment it is sealed | **Active** |
+| Multi-hop `act` chains, budget-bounded delegation, JIT elevation | Emerging (v2) |
 | AP2 mandate bridge (checkout/payment), A2A agent cards | Frontier — after real pilots |
 
 ## Ecosystem

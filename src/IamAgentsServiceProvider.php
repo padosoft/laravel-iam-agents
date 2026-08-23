@@ -105,6 +105,15 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        // P4: il modulo si dichiara al pannello via GET /capabilities (contratto del server:
+        // config `iam.capabilities.*` scritta a boot). Sempre, anche se disabilitato — il
+        // pannello distingue "installato ma spento" (false) da "assente" (chiave mancante).
+        config()->set('iam.capabilities.modules.agents', $this->enabled());
+        config()->set('iam.capabilities.features.agents', [
+            'registration' => config('iam-agents.registration.enabled', false) === true,
+            'max_delegation_depth' => is_numeric($depth = config('iam-agents.max_delegation_depth', 1)) ? (int) $depth : 1,
+        ]);
+
         // Migrazioni del modulo (pattern del server: loadMigrationsFrom, disattivabile).
         if ((bool) config('iam-agents.run_migrations', true)) {
             $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
