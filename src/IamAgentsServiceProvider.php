@@ -132,10 +132,15 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         // Admin API: STESSO stack del server (alias middleware globali iam.admin_auth /
         // iam.can / iam.idempotency), stesso prefix. Permission slug: iam:agents.manage,
         // iam:delegations.manage (da concedere via catalogo PDP — default-deny finché assenti).
-        $prefix = config('iam.admin.route_prefix', 'api/iam/v1');
-        Route::prefix(is_string($prefix) ? $prefix : 'api/iam/v1')
-            ->middleware(['iam.admin_auth', 'iam.idempotency', 'throttle:120,1'])
-            ->group(__DIR__.'/../routes/admin.php');
+        // Gated su iam.admin.register_routes come il server: un host che re-registra l'Admin
+        // API sotto il proprio stack (es. laravel-iam-console, session-authenticated) disattiva
+        // la registrazione qui e include routes/admin.php di QUESTO modulo nel proprio gruppo.
+        if ((bool) config('iam.admin.register_routes', true)) {
+            $prefix = config('iam.admin.route_prefix', 'api/iam/v1');
+            Route::prefix(is_string($prefix) ? $prefix : 'api/iam/v1')
+                ->middleware(['iam.admin_auth', 'iam.idempotency', 'throttle:120,1'])
+                ->group(__DIR__.'/../routes/admin.php');
+        }
 
         // Registrazione agentic (DCR gated + discovery auth.md). OFF di default;
         // le registrazioni atterrano SEMPRE in `pending` (approvazione umana).
