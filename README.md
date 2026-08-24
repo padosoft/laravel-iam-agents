@@ -7,6 +7,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/padosoft/laravel-iam-agents/actions/workflows/tests.yml"><img src="https://img.shields.io/github/actions/workflow/status/padosoft/laravel-iam-agents/tests.yml?branch=main&style=flat-square&label=tests" alt="Tests"></a>
   <a href="https://packagist.org/packages/padosoft/laravel-iam-agents"><img src="https://img.shields.io/packagist/v/padosoft/laravel-iam-agents.svg?style=flat-square" alt="Latest Version on Packagist"></a>
   <a href="https://packagist.org/packages/padosoft/laravel-iam-agents"><img src="https://img.shields.io/packagist/dt/padosoft/laravel-iam-agents.svg?style=flat-square" alt="Total Downloads"></a>
   <a href="https://packagist.org/packages/padosoft/laravel-iam-agents"><img src="https://img.shields.io/packagist/php-v/padosoft/laravel-iam-agents.svg?style=flat-square" alt="PHP Version"></a>
@@ -77,7 +78,7 @@ vendors would have to build from scratch:
 | **JIT scope elevation, multi-channel** — out-of-band re-consent via Telegram/WhatsApp/SMS/voice (`laravel-rebel-channels`) | 🔜 roadmap | ❌ | CIBA (push/SMS) |
 | **Anomaly detection with auto-suspend** on the delegation stream (`laravel-rebel-ai-guard`) | 🔜 roadmap | ❌ | ❌ |
 | **EU AI Act native** — grants as Art. 14 human-oversight items (`laravel-ai-act-compliance`) | 🔜 roadmap | ❌ | ❌ |
-| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 31 tests, every deny asserted | ❌ | ❌ |
+| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 34 tests, every deny asserted | ❌ | ❌ |
 | Gated agentic registration (RFC 7591 subset + `auth.md` discovery), human approval only | ✅ | agent signup | ❌ |
 
 ## The agent lifecycle — humans stay in charge
@@ -104,8 +105,12 @@ agents authenticate with `private_key_jwt` (RFC 7523) only.
 composer require padosoft/laravel-iam-agents
 ```
 
-Requires [`padosoft/laravel-iam-server`](https://github.com/padosoft/laravel-iam-server) (the
-IAM control plane) and PHP 8.3+. The module registers its RFC 8693 grant into the server's token
+> Not yet on Packagist? Until the first sync, add the repository to your `composer.json`:
+> `"repositories": [{ "type": "git", "url": "https://github.com/padosoft/laravel-iam-agents.git" }]`
+
+Requires [`padosoft/laravel-iam-server`](https://github.com/padosoft/laravel-iam-server) `^1.23` (the
+IAM control plane — it carries the claim pipeline, the `agent` app type, the revocation push and
+`/capabilities`) and PHP 8.3+. The module registers its RFC 8693 grant into the server's token
 endpoint automatically — zero core configuration.
 
 ## Quick start (5 minutes)
@@ -210,10 +215,18 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | [laravel-iam-contracts](https://github.com/padosoft/laravel-iam-contracts) | The `Delegation\` contracts: `ActorRef`, `DelegationChain`, `DelegationGrant`, `DelegatedAuthorizationEngine` |
 | [laravel-iam-server](https://github.com/padosoft/laravel-iam-server) | The control plane this module plugs into: OAuth/OIDC, PDP, sessions, hash-chained audit |
 | **laravel-iam-agents** *(this repo)* | Agent registry · delegation grants · RFC 8693 grant · intersection PDP · consent · DCR/auth.md |
-| [laravel-iam-client](https://github.com/padosoft/laravel-iam-client) | PEP for consuming apps (act-aware verification: in progress) |
-| [laravel-flow-ai](https://github.com/padosoft/laravel-flow-ai) | Bounded agent runtime — `DelegatedIdentity` consumer (in progress) |
+| [laravel-iam-client](https://github.com/padosoft/laravel-iam-client) ≥ 1.8 | PEP for consuming apps: act-aware verification (introspection-mandatory), `checkDelegated`, `iam.can.delegated` middleware, delegated decisions never cached — [guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) |
+| [laravel-flow-ai](https://github.com/padosoft/laravel-flow-ai) ≥ 1.1 | Bounded agent runtime: `DelegatedIdentityResolver` seam, per-run credentials to MCP servers via process env, `GrantRevokedException` halts BEFORE the next tool call |
+| [laravel-iam-console](https://github.com/padosoft/laravel-iam-console) ≥ 1.2 | The deployable console: **Agents** page (approve with pasted JWKS = the human gate), **Delegations** page (org-wide grants, kill-switch revoke), `delegation` audit stream |
 | [laravel-rebel-step-up](https://github.com/padosoft/laravel-rebel-step-up) | PSD2-grade consent adapter (dynamic linking, upstream `BindingSource`) |
 | [laravel-ai-guardrails](https://github.com/padosoft/laravel-ai-guardrails) · [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) · [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) | Tool firewall · budgets per agent identity · EU AI Act oversight |
+
+## Documentation
+
+- **Server side**: [Delegated access guide](https://doc.laravel-iam-server.padosoft.com/guides/delegated-access) — the module, the invariant, the four core seams, the sequence diagram.
+- **Enforcement side**: [Client delegated-access guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) — verify delegated bearers, `checkDelegated`, agent-facing routes.
+- **Contracts**: [Delegation reference](https://doc.laravel-iam-contracts.padosoft.com/reference/delegation) — every VO and interface, with the fail-closed rules spelled out.
+- **Consent**: [rebel-step-up dynamic linking](https://github.com/padosoft/laravel-rebel-step-up#3b-dynamic-linking-over-any-consent--genericbindingcontext-v02) — binding a confirmation to *(agent, scopes, ttl, purpose)*.
 
 ## FAQ — junior-proof
 
