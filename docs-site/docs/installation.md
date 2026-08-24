@@ -27,11 +27,6 @@ php artisan migrate
 php artisan vendor:publish --tag=iam-agents-config   # optional
 ```
 
-::: callout note "Not on Packagist yet?"
-Until the one-time Packagist submit, add the repo directly:
-`composer config repositories.iam-agents '{"type":"git","url":"https://github.com/padosoft/laravel-iam-agents.git"}'`
-:::
-
 Migrations create `iam_agents` and `iam_delegation_grants`. The service provider then:
 
 - registers the **RFC 8693 grant** into the server's token endpoint (`app()->extend(AuthorizationServer::class)`);
