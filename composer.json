@@ -24,8 +24,12 @@
         "larastan/larastan": "^3.0",
         "laravel/pint": "^1.18",
         "orchestra/testbench": "^9.0|^10.0",
+        "padosoft/laravel-rebel-step-up": "^0.2",
         "pestphp/pest": "^3.0",
         "pestphp/pest-plugin-laravel": "^3.0"
+    },
+    "suggest": {
+        "padosoft/laravel-rebel-step-up": "Consenso PSD2-grade con dynamic linking reale (RebelStepUpConsentVerifier) al posto del verifier nativo (^0.2)"
     },
     "autoload": {
         "psr-4": {
