@@ -78,7 +78,7 @@ vendors would have to build from scratch:
 | **JIT scope elevation, multi-channel** — out-of-band re-consent via Telegram/WhatsApp/SMS/voice (`laravel-rebel-channels`) | 🔜 roadmap | ❌ | CIBA (push/SMS) |
 | **Anomaly detection with auto-suspend** on the delegation stream (`laravel-rebel-ai-guard`) | 🔜 roadmap | ❌ | ❌ |
 | **EU AI Act native** — grants as Art. 14 human-oversight items (`laravel-ai-act-compliance`) | 🔜 roadmap | ❌ | ❌ |
-| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 34 tests, every deny asserted | ❌ | ❌ |
+| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 41 tests, every deny asserted | ❌ | ❌ |
 | Gated agentic registration (RFC 7591 subset + `auth.md` discovery), human approval only | ✅ | agent signup | ❌ |
 
 ## The agent lifecycle — humans stay in charge
@@ -212,7 +212,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | [laravel-iam-contracts](https://github.com/padosoft/laravel-iam-contracts) | The `Delegation\` contracts: `ActorRef`, `DelegationChain`, `DelegationGrant`, `DelegatedAuthorizationEngine` |
 | [laravel-iam-server](https://github.com/padosoft/laravel-iam-server) | The control plane this module plugs into: OAuth/OIDC, PDP, sessions, hash-chained audit |
 | **laravel-iam-agents** *(this repo)* | Agent registry · delegation grants · RFC 8693 grant · intersection PDP · consent · DCR/auth.md |
-| [laravel-iam-client](https://github.com/padosoft/laravel-iam-client) ≥ 1.8 | PEP for consuming apps: act-aware verification (introspection-mandatory), `checkDelegated`, `iam.can.delegated` middleware, delegated decisions never cached — [guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) |
+| [laravel-iam-client](https://github.com/padosoft/laravel-iam-client) ≥ 1.9 | PEP + exchange for consuming apps: act-aware verification (introspection-mandatory), `checkDelegated`, `iam.can.delegated` middleware (Laravel Context hydration), `TokenExchanger`, delegated decisions never cached — [guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) |
 | [laravel-flow-ai](https://github.com/padosoft/laravel-flow-ai) ≥ 1.1 | Bounded agent runtime: `DelegatedIdentityResolver` seam, per-run credentials to MCP servers via process env, `GrantRevokedException` halts BEFORE the next tool call |
 | [laravel-iam-console](https://github.com/padosoft/laravel-iam-console) ≥ 1.2 | The deployable console: **Agents** page (approve with pasted JWKS = the human gate), **Delegations** page (org-wide grants, kill-switch revoke), `delegation` audit stream |
 | [laravel-rebel-step-up](https://github.com/padosoft/laravel-rebel-step-up) ≥ 0.2 | PSD2-grade consent: set `iam-agents.consent.verifier` to `RebelStepUpConsentVerifier::class` and the *(agent, scopes, ttl, purpose)* binding is enforced by rebel's dynamic linking, not emulated |
