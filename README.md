@@ -105,9 +105,6 @@ agents authenticate with `private_key_jwt` (RFC 7523) only.
 composer require padosoft/laravel-iam-agents
 ```
 
-> Not yet on Packagist? Until the first sync, add the repository to your `composer.json`:
-> `"repositories": [{ "type": "git", "url": "https://github.com/padosoft/laravel-iam-agents.git" }]`
-
 Requires [`padosoft/laravel-iam-server`](https://github.com/padosoft/laravel-iam-server) `^1.23` (the
 IAM control plane — it carries the claim pipeline, the `agent` app type, the revocation push and
 `/capabilities`) and PHP 8.3+. The module registers its RFC 8693 grant into the server's token
@@ -223,6 +220,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 
 ## Documentation
 
+- **This module's docs site**: [doc.laravel-iam-agents.padosoft.com](https://doc.laravel-iam-agents.padosoft.com) — junior-proof glossary, the intersection rule, token lifecycle, the three consent verifiers, cookbook, threat model with the negative-test contract, and every RFC 8693 error explained one by one.
 - **Server side**: [Delegated access guide](https://doc.laravel-iam-server.padosoft.com/guides/delegated-access) — the module, the invariant, the four core seams, the sequence diagram.
 - **Enforcement side**: [Client delegated-access guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) — verify delegated bearers, `checkDelegated`, agent-facing routes.
 - **Contracts**: [Delegation reference](https://doc.laravel-iam-contracts.padosoft.com/reference/delegation) — every VO and interface, with the fail-closed rules spelled out.
