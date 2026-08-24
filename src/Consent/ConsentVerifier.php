@@ -8,12 +8,13 @@ use Padosoft\Iam\Contracts\Identity\SessionRef;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
 
 /**
- * La porta del consenso di delega. Due implementazioni nel modulo:
+ * La porta del consenso di delega. Tre implementazioni nel modulo:
  * - IamNativeConsentVerifier: step-up nativo IAM (claim single-use reale) + binding
  *   dei parametri emulato module-side (hash canonico in cache alla challenge).
+ * - RebelStepUpConsentVerifier: dynamic linking PSD2-grade VERO via rebel-step-up
+ *   >= 0.2 (GenericBindingContext, P5) — richiede `padosoft/laravel-rebel-step-up`.
  * - NullConsentVerifier (default): rifiuta tutto — il modulo non configurato non
  *   concede nulla.
- * Un adapter rebel-step-up (dynamic linking PSD2-grade) arriva col patch P5 upstream.
  */
 interface ConsentVerifier
 {

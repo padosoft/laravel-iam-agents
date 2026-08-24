@@ -41,7 +41,9 @@ return [
         // creabile finché non configuri un verifier reale). Opzioni del modulo:
         // - \Padosoft\Iam\Agents\Consent\IamNativeConsentVerifier::class (step-up nativo IAM,
         //   single-use reale, dynamic-linking emulato module-side via hash parametri)
-        // - adapter rebel-step-up (dynamic linking PSD2-grade) quando il pacchetto è installato.
+        // - \Padosoft\Iam\Agents\Consent\RebelStepUpConsentVerifier::class (dynamic linking
+        //   PSD2-grade reale; richiede `padosoft/laravel-rebel-step-up` ^0.2 e il purpose
+        //   configurato in `rebel-step-up.purposes` con `sca.dynamic_linking` attivo).
         'verifier' => null,
 
         // FQCN del DelegationSessionResolver: dice al modulo DOVE vive il sid IAM

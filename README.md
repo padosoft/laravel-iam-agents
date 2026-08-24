@@ -218,7 +218,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | [laravel-iam-client](https://github.com/padosoft/laravel-iam-client) ≥ 1.8 | PEP for consuming apps: act-aware verification (introspection-mandatory), `checkDelegated`, `iam.can.delegated` middleware, delegated decisions never cached — [guide](https://doc.laravel-iam-client.padosoft.com/guides/delegated-access) |
 | [laravel-flow-ai](https://github.com/padosoft/laravel-flow-ai) ≥ 1.1 | Bounded agent runtime: `DelegatedIdentityResolver` seam, per-run credentials to MCP servers via process env, `GrantRevokedException` halts BEFORE the next tool call |
 | [laravel-iam-console](https://github.com/padosoft/laravel-iam-console) ≥ 1.2 | The deployable console: **Agents** page (approve with pasted JWKS = the human gate), **Delegations** page (org-wide grants, kill-switch revoke), `delegation` audit stream |
-| [laravel-rebel-step-up](https://github.com/padosoft/laravel-rebel-step-up) | PSD2-grade consent adapter (dynamic linking, upstream `BindingSource`) |
+| [laravel-rebel-step-up](https://github.com/padosoft/laravel-rebel-step-up) ≥ 0.2 | PSD2-grade consent: set `iam-agents.consent.verifier` to `RebelStepUpConsentVerifier::class` and the *(agent, scopes, ttl, purpose)* binding is enforced by rebel's dynamic linking, not emulated |
 | [laravel-ai-guardrails](https://github.com/padosoft/laravel-ai-guardrails) · [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) · [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) | Tool firewall · budgets per agent identity · EU AI Act oversight |
 
 ## Documentation
