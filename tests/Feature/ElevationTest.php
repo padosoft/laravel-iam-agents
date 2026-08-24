@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use Padosoft\Iam\Agents\Consent\IamNativeConsentVerifier;
@@ -10,6 +11,7 @@ use Padosoft\Iam\Agents\Elevation\DelegationElevationService;
 use Padosoft\Iam\Agents\Elevation\ElevationException;
 use Padosoft\Iam\Agents\Events\AgentSuspended;
 use Padosoft\Iam\Agents\Events\DelegationGrantRevoked;
+use Padosoft\Iam\Agents\Http\Controllers\Admin\DelegationGrantsController;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationElevationModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
@@ -172,6 +174,30 @@ it('il notifier configurato è best-effort: il fallimento è auditato, la richie
     expect(DelegationElevationModel::query()->findOrFail($req->id)->status)->toBe(DelegationElevationModel::STATUS_PENDING);
     $failed = AuditEvent::query()->where('event_type', 'iam.delegation.elevation.notify_failed')->latest('id')->first();
     expect($failed?->metadata_json['error'] ?? null)->toBe('all channels down');
+});
+
+it('l\'admin VEDE budget e pending_elevations sulla lista grants (kill-switch context)', function () {
+    $w = elevationWorld();
+    DelegationGrantModel::query()->whereKey($w['grant']->id)
+        ->update(['budget' => json_encode(['amount' => 25.0, 'currency' => 'EUR'])]);
+    $req = $w['service']->request($w['grant']->id, ['orders:write'], 'Serve la bozza');
+
+    $controller = new DelegationGrantsController(
+        app(DelegationGrantStore::class),
+    );
+    $payload = $controller->index(Request::create('/', 'GET'))->getData(true);
+
+    $row = collect($payload['data'])->firstWhere('id', $w['grant']->id);
+    expect($row['budget'])->toEqual(['amount' => 25, 'currency' => 'EUR'])
+        ->and($row['pending_elevations'])->toHaveCount(1)
+        ->and($row['pending_elevations'][0]['id'])->toBe($req->id)
+        ->and($row['pending_elevations'][0]['requested_scopes'])->toBe(['orders:write'])
+        ->and($row['pending_elevations'][0]['reason'])->toBe('Serve la bozza');
+
+    // Decisa ⇒ sparisce dalle pending (il contesto resta pulito).
+    $w['service']->deny($req->id, $w['user']);
+    $payload = $controller->index(Request::create('/', 'GET'))->getData(true);
+    expect(collect($payload['data'])->firstWhere('id', $w['grant']->id)['pending_elevations'])->toBe([]);
 });
 
 // ── Lifecycle port + eventi ──

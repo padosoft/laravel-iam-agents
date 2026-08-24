@@ -41,7 +41,7 @@ slugs: `iam:agents.manage`, `iam:delegations.manage`, `iam:decisions.check`.
 | `GET/POST /agents` · `GET /agents/{id}` | List/create/inspect agents (filters: `status`, `operator`) |
 | `POST /agents/{id}/approve` | **The human gate**: pastes public JWKS, creates the OAuth client (confidential, `private_key_jwt`, token-exchange only), activates |
 | `POST /agents/{id}/suspend` · `/retire` | Kill-switch / terminal retirement |
-| `GET /delegation-grants` | Org-wide grant search |
+| `GET /delegation-grants` | Org-wide grant search — each row carries `budget` and its live `pending_elevations` (id, extra scopes, reason, expiry): the admin SEES a pending authority ask, the delegating user stays the only one who decides |
 | `POST /delegation-grants/{id}/revoke` | Admin revocation |
 | `POST /decisions/check-delegated` | The intersection decision endpoint for remote PEPs |
 
