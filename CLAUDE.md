@@ -30,8 +30,9 @@ Corollari non negoziabili:
 4. **Mai auto-provisioning**: le registrazioni agentic (DCR/auth.md) atterrano in `pending`;
    `active` SOLO con approvazione umana. Un agente autentica SOLO via `private_key_jwt`.
 5. **Consenso = evidenza**: challenge step-up vincolata all'hash canonico di
-   (agent, scopes, ttl, purpose); `consent_confirmation_id` è UNIQUE (one-shot). La revoca è
-   sempre più facile del consenso (mai step-up per revocare).
+   (agent, scopes, ttl, purpose — e `budget`, quando presente: v1.1);
+   `consent_confirmation_id` è UNIQUE (one-shot). La revoca è sempre più facile del consenso
+   (mai step-up per revocare).
 6. **Ogni exchange (emesso O rifiutato) e ogni mutazione è auditata** su `stream=delegation`
    (hash-chain del server). Nei metadata di audit MAI chiavi con substring `token`
    (`grant_id`, `*_confirmation_id` — le admin API redigono per substring).
@@ -40,6 +41,13 @@ Corollari non negoziabili:
    per le resource server: il `typ: delegated+jwt` è igiene, non l'unica difesa.
 8. **`DelegatedAuthorizationEngine` è un'interfaccia NUOVA** ("add, don't mutate"): il
    decorator `DelegatedEngine` non altera mai il check single-subject dell'engine interno.
+9. **Budget fail-closed (v1.1)**: una grant CON budget e nessun `DelegationBudgetGuard` bindato
+   ⇒ exchange RIFIUTATO (`delegation_budget_unenforceable`) — mai "budget ignorato". Il modulo
+   non misura: definisce la porta (il meter di riferimento è laravel-ai-finops).
+10. **JIT elevation (v1.1)**: solo su grant Active, solo scope EXTRA, MAI oltre `max_scopes`
+   (il ceiling admin non si alza col consenso); `pending` scade da solo; approvare = RI-consenso
+   step-up bound agli scope extra (one-shot); negare è one-click; il notifier out-of-band
+   (rebel-channels) INFORMA soltanto, best-effort, mai autoritativo.
 
 ## Architettura
 

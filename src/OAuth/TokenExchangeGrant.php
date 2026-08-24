@@ -16,6 +16,7 @@ use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
 use Padosoft\Iam\Contracts\Delegation\ActClaim;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
+use Padosoft\Iam\Contracts\Delegation\DelegationBudgetGuard;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrant;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStore;
 use Padosoft\Iam\Contracts\Identity\SessionRegistry;
@@ -132,6 +133,24 @@ final class TokenExchangeGrant extends AbstractGrant
         $grant = $this->grants->findActive($userRef, $agent->subject());
         if ($grant === null) {
             $this->refuse($agent->id, $sub, 'no_active_delegation_grant');
+        }
+
+        // 4-bis) Budget (v1.1): gli scope limitano l'autorità, il budget l'intensità.
+        //    FAIL-CLOSED su due lati: budget dichiarato senza meter bindato ⇒ il vincolo
+        //    consentito non è enforceable ⇒ refuse; meter che nega ⇒ refuse (il motivo
+        //    dettagliato resta nell'audit, il client vede solo invalid_grant).
+        if ($grant->budget !== null) {
+            if (!app()->bound(DelegationBudgetGuard::class)) {
+                $this->audit->exchange($agent->id, $sub, false, [], $grant->id, 'delegation_budget_unenforceable');
+
+                throw OAuthServerException::invalidGrant();
+            }
+            $budgetVerdict = app(DelegationBudgetGuard::class)->verdict($grant);
+            if (!$budgetVerdict->allowed) {
+                $this->audit->exchange($agent->id, $sub, false, [], $grant->id, 'delegation_budget_exhausted: '.$budgetVerdict->reason);
+
+                throw OAuthServerException::invalidGrant();
+            }
         }
 
         // 5) Intersezione degli scope: richiesti ∩ grant ∩ max_scopes (il layer UTENTE

@@ -9,6 +9,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Padosoft\Iam\Contracts\Assurance\Aal;
 use Padosoft\Iam\Contracts\Delegation\ActorRef;
+use Padosoft\Iam\Contracts\Delegation\DelegationBudget;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrant;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStatus;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
@@ -27,6 +28,7 @@ use Padosoft\Iam\Contracts\Support\SubjectRef;
  * @property string $status
  * @property Carbon $expires_at
  * @property string|null $consent_confirmation_id
+ * @property array<array-key, mixed>|null $budget
  * @property string|null $consent_aal
  * @property Carbon|null $revoked_at
  * @property string|null $revoked_by_type
@@ -42,13 +44,14 @@ final class DelegationGrantModel extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'id', 'user_type', 'user_id', 'agent_id', 'scopes', 'purpose', 'status',
+        'id', 'user_type', 'user_id', 'agent_id', 'scopes', 'purpose', 'budget', 'status',
         'expires_at', 'consent_confirmation_id', 'consent_aal',
         'revoked_at', 'revoked_by_type', 'revoked_by_id',
     ];
 
     protected $casts = [
         'scopes' => 'array',
+        'budget' => 'array',
         'expires_at' => 'datetime',
         'revoked_at' => 'datetime',
     ];
@@ -83,6 +86,7 @@ final class DelegationGrantModel extends Model
             revokedBy: ($this->revoked_by_type !== null && $this->revoked_by_id !== null)
                 ? new SubjectRef($this->revoked_by_type, $this->revoked_by_id)
                 : null,
+            budget: is_array($this->budget) && $this->budget !== [] ? DelegationBudget::fromArray($this->budget) : null,
         );
     }
 }

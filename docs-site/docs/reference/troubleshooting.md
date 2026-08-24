@@ -45,6 +45,8 @@ The coarse bucket for **every** policy refusal — deliberately indistinguishabl
 | User's session no longer alive | The user logged out / was revoked: re-login, re-exchange |
 | No delegation grant for (user, agent) | The user never consented — send them to the consent flow |
 | Grant expired or revoked | Ask for fresh consent (or the revocation was the point) |
+| `delegation_budget_unenforceable` — grant has a budget, no `DelegationBudgetGuard` bound | Bind a meter (e.g. laravel-ai-finops `iam_delegation` integration) or grant without a budget. Fail-closed by design: a budget nobody enforces would be a broken promise to the user |
+| `delegation_budget_exhausted: <reason>` — the bound meter said no | The grant's budget cap is crossed. The user grants fresh consent with a new budget (or an admin reviews the spend) — the cap doing its job is not an error |
 
 ## `invalid_scope`
 
@@ -69,4 +71,14 @@ truth.
 | `agent_not_active` | Consent can only target an `active` agent |
 | `scopes_exceed_agent_ceiling` | Requested scopes outside the agent's `max_scopes` |
 | `ttl_exceeds_maximum` | Longer than `grants.max_ttl_days` |
-| Binding mismatch on store | Parameters differ between challenge and store calls — send the **exact same four** |
+| Binding mismatch on store | Parameters differ between challenge and store calls — send the **exact same four** (five, when a `budget` is included: it is part of the binding too) |
+
+## Elevation errors (`ElevationException` / `422` on the elevation endpoints)
+
+| Error | Meaning |
+| --- | --- |
+| Grant absent or not active | Elevation only extends a **living** grant — revoked/expired grants need fresh consent, not elevation |
+| Scopes already covered | The grant already has them: just re-exchange |
+| Scopes outside the agent ceiling | `max_scopes` is structural — no user consent raises it. An admin must widen the ceiling first (that's an org review, on purpose) |
+| Request no longer decidable | Pending expired (`elevation.pending_ttl_minutes`, default 15) or already decided. Fail-closed: the agent re-requests |
+| Request "not found" for a logged-in user | Elevation requests are only visible to the grant's own user — other users get non-existence, never "not yours" |

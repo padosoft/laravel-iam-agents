@@ -11,10 +11,14 @@ use Padosoft\Iam\Agents\Audit\DelegationAudit;
 use Padosoft\Iam\Agents\Consent\ConsentFailedException;
 use Padosoft\Iam\Agents\Consent\ConsentPayload;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
+use Padosoft\Iam\Agents\Elevation\DelegationElevationService;
+use Padosoft\Iam\Agents\Elevation\ElevationException;
+use Padosoft\Iam\Agents\Events\DelegationGrantCreated;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Agents\Support\DelegationSessionResolver;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
+use Padosoft\Iam\Contracts\Delegation\DelegationBudget;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStatus;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStore;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
@@ -49,10 +53,15 @@ final class SelfServiceDelegationsController
                 'created_at' => $grant->createdAt->format(\DateTimeInterface::ATOM),
                 'consent_aal' => $grant->consentAal?->value,
                 'revoked_at' => $grant->revokedAt?->format(\DateTimeInterface::ATOM),
+                'budget' => $grant->budget?->toArray(),
             ];
         }
 
-        return new JsonResponse(['data' => $grants]);
+        return new JsonResponse([
+            'data' => $grants,
+            // Richieste di JIT elevation in attesa della decisione del delegante.
+            'pending_elevations' => app(DelegationElevationService::class)->pendingFor($user),
+        ]);
     }
 
     /** Passo 1: apre la challenge di consenso VINCOLATA ai parametri richiesti. */
@@ -127,6 +136,7 @@ final class SelfServiceDelegationsController
                 'agent_id' => $payload->agentId,
                 'scopes' => $payload->scopes,
                 'purpose' => $payload->purpose,
+                'budget' => $payload->budget?->toArray(),
                 'status' => DelegationGrantStatus::Active->value,
                 'expires_at' => now()->addSeconds($payload->ttlSeconds),
                 'consent_confirmation_id' => $evidence->confirmationId, // UNIQUE ⇒ one-shot
@@ -136,6 +146,8 @@ final class SelfServiceDelegationsController
 
             return $grant;
         });
+
+        event(new DelegationGrantCreated($grant->toContract(), $agent->name));
 
         return new JsonResponse(['data' => ['id' => $grant->id]], 201);
     }
@@ -156,6 +168,61 @@ final class SelfServiceDelegationsController
         return new JsonResponse(status: 204);
     }
 
+    /** Passo 1 dell'approvazione JIT: challenge step-up vincolata agli scope extra. */
+    public function elevationChallenge(Request $request, string $elevationId): JsonResponse
+    {
+        $user = $this->subject($request);
+        try {
+            $challenge = app(DelegationElevationService::class)
+                ->approveChallenge($elevationId, $user, $this->sessions->resolve($request));
+        } catch (ElevationException|ConsentFailedException $e) {
+            return new JsonResponse(['error' => 'elevation_unavailable', 'message' => $e->getMessage()], 422);
+        }
+
+        return new JsonResponse(['data' => $challenge]);
+    }
+
+    /** Passo 2: verifica il RI-consenso e (one-shot) estende la grant. */
+    public function elevationApprove(Request $request, string $elevationId): JsonResponse
+    {
+        $user = $this->subject($request);
+        $raw = $request->input('verification');
+        $verification = [];
+        if (is_array($raw)) {
+            foreach ($raw as $key => $value) {
+                if (is_string($key)) {
+                    $verification[$key] = $value;
+                }
+            }
+        }
+
+        try {
+            app(DelegationElevationService::class)->approve(
+                $elevationId,
+                $user,
+                $request->string('challenge_id')->toString(),
+                $verification,
+            );
+        } catch (ElevationException $e) {
+            return new JsonResponse(['error' => 'elevation_failed', 'message' => $e->getMessage()], 422);
+        }
+
+        return new JsonResponse(['data' => ['id' => $elevationId, 'status' => 'approved']]);
+    }
+
+    /** Negare è one-click: mai step-up per rifiutare un'estensione di autorità. */
+    public function elevationDeny(Request $request, string $elevationId): JsonResponse
+    {
+        $user = $this->subject($request);
+        try {
+            app(DelegationElevationService::class)->deny($elevationId, $user);
+        } catch (ElevationException $e) {
+            return new JsonResponse(['error' => 'elevation_failed', 'message' => $e->getMessage()], 422);
+        }
+
+        return new JsonResponse(['data' => ['id' => $elevationId, 'status' => 'denied']]);
+    }
+
     private function subject(Request $request): SubjectRef
     {
         $user = $request->user();
@@ -169,11 +236,17 @@ final class SelfServiceDelegationsController
     {
         $scopes = $request->input('scopes');
 
+        $budgetInput = $request->input('budget');
+        // Budget opzionale (v1.1): quando presente ENTRA nel binding del consenso —
+        // l'utente approva anche l'intensità, non solo l'autorità.
+        $budget = is_array($budgetInput) && $budgetInput !== [] ? DelegationBudget::fromArray($budgetInput) : null;
+
         return new ConsentPayload(
             agentId: $request->string('agent_id')->toString(),
             scopes: is_array($scopes) ? array_values(array_filter($scopes, 'is_string')) : [],
             ttlSeconds: $request->integer('ttl_seconds'),
             purpose: $request->string('purpose')->toString(),
+            budget: $budget,
         );
     }
 

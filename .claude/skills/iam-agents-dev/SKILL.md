@@ -27,7 +27,8 @@ Non-negotiable corollaries — check EVERY diff against these:
 4. **No auto-provisioning, ever**: DCR/auth.md registrations land `pending` with zero grants/scopes.
    `active` requires the human approval endpoint. Agents authenticate ONLY via `private_key_jwt`.
 5. **Consent evidence**: challenges are bound to the canonical hash of (agent, scopes, ttl,
-   purpose); `consent_confirmation_id` stays UNIQUE (one-shot); revocation NEVER requires step-up.
+   purpose — plus `budget` when present, v1.1); `consent_confirmation_id` stays UNIQUE
+   (one-shot); revocation NEVER requires step-up.
 6. **Audit everything** on `stream=delegation` — refused exchanges included (detail goes to audit,
    the client gets only the RFC error code). Metadata keys must NEVER contain the substring
    `token` (admin APIs redact by substring): use `grant_id`, `consent_confirmation_id`.
@@ -38,6 +39,13 @@ Non-negotiable corollaries — check EVERY diff against these:
    never alter single-subject `check()` behavior.
 9. **Fail-closed configuration**: a `null`/missing verifier, resolver or engine binding must refuse,
    never fall back to something more permissive.
+10. **Budget is fail-closed (v1.1)**: a grant WITH a budget and no `DelegationBudgetGuard` bound
+    means the exchange is REFUSED (`delegation_budget_unenforceable`) — never "budget ignored".
+    The module defines the port; it never meters usage itself.
+11. **JIT elevation (v1.1)**: only on an Active grant, only EXTRA scopes, NEVER past
+    `max_scopes` (consent does not raise the admin ceiling); `pending` self-expires; approval is
+    a bound re-consent (one-shot); denial is one click; the out-of-band notifier informs only —
+    best-effort, audited, never authoritative.
 
 ## The loop (per sub-task)
 
