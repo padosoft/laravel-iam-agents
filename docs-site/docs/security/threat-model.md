@@ -66,6 +66,11 @@ These must stay red-line tests in every consumer integration too:
 | Consent confirm with tampered parameters | `ConsentFailedException` (binding mismatch) |
 | Same confirmation used for a second grant | refused (UNIQUE) |
 | Achieved consent AAL below the configured minimum | refused fail-closed |
+| Budgeted grant with no `DelegationBudgetGuard` bound (v1.1) | `invalid_grant` (`delegation_budget_unenforceable`) |
+| Budget guard verdict: deny (v1.1) | `invalid_grant` (`delegation_budget_exhausted: <reason>`) |
+| Consent confirm with a tampered budget (v1.1) | `ConsentFailedException` (binding mismatch) |
+| Elevation for scopes outside the agent `max_scopes` ceiling (v1.1) | refused (`ElevationException`) |
+| Elevation approve after `pending` expiry / by a different user (v1.1) | refused fail-closed |
 
 ## Residual risks, stated honestly
 

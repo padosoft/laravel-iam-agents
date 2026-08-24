@@ -52,6 +52,21 @@ return [
         'session_resolver' => null,
     ],
 
+    'elevation' => [
+        // JIT scope elevation (v1.1): finestra di validità di una richiesta pending.
+        // Scaduta ⇒ expired da sola (fail-closed: l'ignorata non eleva mai).
+        'pending_ttl_minutes' => env('IAM_AGENTS_ELEVATION_PENDING_TTL', 15),
+
+        // Purpose del RI-consenso step-up dell'elevazione (kebab-case obbligatorio).
+        'purpose' => 'iam-delegation-elevation',
+
+        // FQCN dell'ElevationNotifier (canale out-of-band verso il delegante).
+        // null → nessuna notifica push: le richieste restano visibili in self-service.
+        // Implementazione di riferimento:
+        // \Padosoft\Rebel\Channels\Delegation\ChannelElevationNotifier::class (laravel-rebel-channels).
+        'notifier' => null,
+    ],
+
     'registration' => [
         // Registrazione agentic (DCR RFC 7591 gated + auth.md/ID-JAG). OFF di default.
         // Le registrazioni atterrano SEMPRE in stato `pending`: Active solo con

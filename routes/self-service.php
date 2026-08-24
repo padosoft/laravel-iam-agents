@@ -11,3 +11,9 @@ Route::get('/', [SelfServiceDelegationsController::class, 'index']);
 Route::post('/consent-challenge', [SelfServiceDelegationsController::class, 'consentChallenge']);
 Route::post('/', [SelfServiceDelegationsController::class, 'store']);
 Route::delete('/{grantId}', [SelfServiceDelegationsController::class, 'destroy']);
+
+// JIT elevation (v1.1): il delegante approva (RI-consenso step-up, due passi) o nega
+// (one-click) le richieste di scope aggiuntivi. Le pending sono nella GET / (index).
+Route::post('/elevations/{elevationId}/consent-challenge', [SelfServiceDelegationsController::class, 'elevationChallenge']);
+Route::post('/elevations/{elevationId}/approve', [SelfServiceDelegationsController::class, 'elevationApprove']);
+Route::post('/elevations/{elevationId}/deny', [SelfServiceDelegationsController::class, 'elevationDeny']);

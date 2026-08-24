@@ -169,6 +169,29 @@ $decision = app(DelegatedAuthorizationEngine::class)->checkDelegated(
 **5. Revoke any time** — `DELETE /iam/me/delegations/{id}`. The next exchange fails. No waiting
 for token expiry, no support ticket.
 
+## Budgets & just-in-time elevation (v1.1)
+
+**Scopes bound authority; budgets bound intensity.** A grant can carry a `budget`
+(€ / tokens / calls) that the user approves **inside the same bound confirmation** — change the
+budget after the challenge and the consent dies, like any tampered parameter. Enforcement is
+fail-closed at exchange: a budgeted grant with no `DelegationBudgetGuard` bound is refused
+(`delegation_budget_unenforceable`), and the reference meter is
+[laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) — every AI call accrues against
+the grant, and the next re-exchange stops an exhausted agent within one token TTL.
+
+**An action outside the grant no longer dies on a flat deny.** The agent *asks*: a JIT elevation
+request (extra scopes + reason) opens against the grant, the user is nudged out-of-band
+(best-effort, e.g. [laravel-rebel-channels](https://github.com/padosoft/laravel-rebel-channels)),
+and approving is a **full re-consent** — step-up bound to exactly the extra scopes, one-shot,
+while the agent's `max_scopes` ceiling stays uncrossable and denying stays one click. Ignored
+requests expire on their own.
+
+Suspension is a port too: `AgentLifecycle::suspend()` lets detectors
+([laravel-rebel-ai-guard](https://github.com/padosoft/laravel-rebel-ai-guard)) pull the brake, and
+domain events (`DelegationGrantCreated/Revoked`, `AgentApproved/Suspended/Retired`) feed
+[laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance)'s Art. 14
+oversight. Details: [Budget & elevation guide](https://doc.laravel-iam-agents.padosoft.com/guides/budget-and-elevation).
+
 ## What will get an agent denied (and tested)
 
 Every one of these is a **negative test in the shipped suite** — security proven, not promised:
@@ -178,6 +201,8 @@ Every one of these is a **negative test in the shipped suite** — security prov
 - Subject token whose user **session was revoked** → `invalid_grant`
 - Subject token without a session (m2m): delegation requires a human → `invalid_grant`
 - Re-exchanging an **already-delegated token** (no chaining) → `invalid_grant`
+- A budgeted grant with **no budget guard bound** → `invalid_grant` (fail-closed, audited `delegation_budget_unenforceable`)
+- Budget exhausted per the bound meter → `invalid_grant` (`delegation_budget_exhausted: <reason>`)
 - Scopes outside `requested ∩ grant ∩ agent ceiling` → `invalid_scope`
 - `actor_token` (multi-hop, v2) → clean `invalid_request` per RFC 8693
 - A malformed `act` claim **throws** — it never silently degrades to full-user authority
@@ -202,7 +227,8 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | RFC 8693 exchange, act claim, intersection PDP, consent, revocation, audit | **Active** |
 | Gated DCR + auth.md discovery | **Active** (off by default, human approval only) |
 | Revocation push — every `delegation` stream event (grant revoked, exchange refused, lifecycle) is pushed to the server's signed webhook subscriptions the moment it is sealed | **Active** |
-| Multi-hop `act` chains, budget-bounded delegation, JIT elevation | Emerging (v2) |
+| Budget-bounded delegation (grant-level caps, fail-closed guard port) · JIT scope elevation (bound re-consent) | **Active** (v1.1) |
+| Multi-hop `act` chains | Emerging (v2) |
 | AP2 mandate bridge (checkout/payment), A2A agent cards | Frontier — after real pilots |
 
 ## Ecosystem

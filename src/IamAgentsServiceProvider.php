@@ -12,14 +12,17 @@ use Padosoft\Iam\Agents\Consent\NullConsentVerifier;
 use Padosoft\Iam\Agents\Grants\DbDelegationGrantStore;
 use Padosoft\Iam\Agents\OAuth\TokenExchangeGrant;
 use Padosoft\Iam\Agents\Pdp\DelegatedEngine;
+use Padosoft\Iam\Agents\Registry\AgentLifecycleService;
 use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Agents\Support\DelegationSessionResolver;
 use Padosoft\Iam\Agents\Support\NullDelegationSessionResolver;
 use Padosoft\Iam\Contracts\Authorization\AuthorizationEngine;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
+use Padosoft\Iam\Contracts\Delegation\AgentLifecycle;
 use Padosoft\Iam\Contracts\Delegation\AgentRegistry;
 use Padosoft\Iam\Contracts\Delegation\DelegatedAuthorizationEngine;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStore;
+use Padosoft\Iam\Contracts\Delegation\ElevationNotifier;
 use Padosoft\Iam\Contracts\Identity\SessionRegistry;
 use Padosoft\Iam\Domain\OAuth\Token\TokenIssuanceContext;
 use Spatie\LaravelPackageTools\Package;
@@ -51,6 +54,25 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         $this->app->bind(DelegationGrantStore::class, DbDelegationGrantStore::class);
 
         // Consenso: FQCN da config, default fail-closed (nessuna grant creabile).
+        // Porta AgentLifecycle (contracts v1.4): il kill-switch per i componenti di
+        // sicurezza (rebel-ai-guard). Solo suspend; la ri-attivazione resta umana.
+        $this->app->singleton(AgentLifecycle::class, AgentLifecycleService::class);
+
+        // Notifier out-of-band della JIT elevation (contracts v1.4): opzionale, FQCN in
+        // config (implementazione di riferimento: laravel-rebel-channels). Non bindato
+        // ⇒ la richiesta resta comunque visibile/approvabile in self-service.
+        $this->app->bind(ElevationNotifier::class, function () {
+            $fqcn = config('iam-agents.elevation.notifier');
+            if (!is_string($fqcn) || $fqcn === '' || !is_a($fqcn, ElevationNotifier::class, true)) {
+                throw new \RuntimeException('iam-agents.elevation.notifier non configurato.');
+            }
+
+            $notifier = $this->app->make($fqcn);
+            assert($notifier instanceof ElevationNotifier);
+
+            return $notifier;
+        });
+
         $this->app->bind(ConsentVerifier::class, function (): ConsentVerifier {
             $fqcn = config('iam-agents.consent.verifier');
             if (is_string($fqcn) && $fqcn !== '' && is_a($fqcn, ConsentVerifier::class, true)) {

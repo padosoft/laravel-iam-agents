@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\Iam\Agents\Audit;
 
 use Padosoft\Iam\Agents\Models\Agent;
+use Padosoft\Iam\Agents\Models\DelegationElevationModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
 use Padosoft\Iam\Domain\Audit\Pii\AuditRecorder;
@@ -91,6 +92,58 @@ final class DelegationAudit
                 'user' => $grant->user_type.':'.$grant->user_id,
                 'revoked_by' => (string) $revokedBy,
             ],
+        ]);
+    }
+
+    /** Richiesta di JIT elevation aperta (scope extra + reason, finestra pending). */
+    public function elevationRequested(DelegationElevationModel $elevation, string $agentName): void
+    {
+        $this->recorder->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.elevation.requested',
+            'target_type' => 'delegation_elevation',
+            'target_id' => $elevation->id,
+            'risk_level' => 'medium',
+            'metadata_json' => [
+                'grant_id' => $elevation->grant_id,
+                'agent_name' => $agentName,
+                'requested_scopes' => $elevation->requested_scopes,
+                'reason' => $elevation->reason,
+            ],
+        ]);
+    }
+
+    /** Esito della consegna out-of-band (rebel-channels): mai inghiottita muta. */
+    public function elevationNotified(DelegationElevationModel $elevation, bool $delivered, ?string $error = null): void
+    {
+        $this->recorder->record([
+            'stream' => self::STREAM,
+            'event_type' => $delivered ? 'iam.delegation.elevation.notified' : 'iam.delegation.elevation.notify_failed',
+            'target_type' => 'delegation_elevation',
+            'target_id' => $elevation->id,
+            'risk_level' => $delivered ? 'low' : 'medium',
+            'metadata_json' => array_filter([
+                'grant_id' => $elevation->grant_id,
+                'error' => $error,
+            ], static fn ($v): bool => $v !== null),
+        ]);
+    }
+
+    /** Decisione del delegante: approved (con evidenza ri-consenso) o denied. */
+    public function elevationDecided(DelegationElevationModel $elevation, string $decision): void
+    {
+        $this->recorder->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.elevation.'.$decision,
+            'target_type' => 'delegation_elevation',
+            'target_id' => $elevation->id,
+            'risk_level' => $decision === 'approved' ? 'medium' : 'low',
+            'metadata_json' => array_filter([
+                'grant_id' => $elevation->grant_id,
+                'requested_scopes' => $elevation->requested_scopes,
+                'consent_confirmation_id' => $elevation->consent_confirmation_id,
+                'consent_aal' => $elevation->consent_aal,
+            ], static fn ($v): bool => $v !== null),
         ]);
     }
 

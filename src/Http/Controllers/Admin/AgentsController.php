@@ -8,6 +8,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Padosoft\Iam\Agents\Audit\DelegationAudit;
+use Padosoft\Iam\Agents\Events\AgentApproved;
+use Padosoft\Iam\Agents\Events\AgentRetired;
+use Padosoft\Iam\Agents\Events\AgentSuspended;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
 use Padosoft\Iam\Domain\OAuth\Models\OauthClient;
@@ -119,6 +122,14 @@ final class AgentsController
 
         $this->audit->agentLifecycle($agent, 'approved');
 
+        event(new AgentApproved(
+            $agent->id,
+            $agent->name,
+            $agent->operator,
+            array_values(array_filter($agent->max_scopes, 'is_string')),
+            is_string($actor = request()->attributes->get('iam_admin_actor')) ? $actor : 'admin',
+        ));
+
         return new JsonResponse(['data' => $agent->refresh()]);
     }
 
@@ -147,6 +158,13 @@ final class AgentsController
 
         $agent->fill(['status' => $to->value] + $stamps)->save();
         $this->audit->agentLifecycle($agent, $event);
+
+        $actor = is_string($a = request()->attributes->get('iam_admin_actor')) ? $a : 'admin';
+        match ($event) {
+            'suspended' => event(new AgentSuspended($agent->id, $agent->name, 'admin_action', $actor)),
+            'retired' => event(new AgentRetired($agent->id, $agent->name, $actor)),
+            default => null,
+        };
 
         return new JsonResponse(['data' => $agent]);
     }

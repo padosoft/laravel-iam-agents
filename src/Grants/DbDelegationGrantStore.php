@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Padosoft\Iam\Agents\Grants;
 
 use Padosoft\Iam\Agents\Audit\DelegationAudit;
+use Padosoft\Iam\Agents\Events\DelegationGrantRevoked;
+use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Contracts\Delegation\ActorRef;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrant;
@@ -75,5 +77,10 @@ final class DbDelegationGrantStore implements DelegationGrantStore
         ])->save();
 
         $this->audit->grantRevoked($grant, $revokedBy);
+
+        event(new DelegationGrantRevoked(
+            $grant->toContract(),
+            is_string($name = Agent::query()->whereKey($grant->agent_id)->value('name')) ? $name : '',
+        ));
     }
 }

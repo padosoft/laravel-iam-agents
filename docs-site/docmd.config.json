@@ -5,84 +5,145 @@
   "src": "docs",
   "out": "_site",
   "base": "/",
-
   "favicon": "assets/favicon.svg",
   "theme": {
     "name": "default",
     "defaultMode": "dark",
-    "customCss": ["assets/custom.css"]
+    "customCss": [
+      "assets/custom.css"
+    ]
   },
-
   "autoTitleFromH1": true,
   "copyCode": true,
   "pageNavigation": true,
   "minify": true,
-  "markdown": { "breaks": true },
-
+  "markdown": {
+    "breaks": true
+  },
   "layout": {
     "spa": true,
-    "header": { "enabled": true },
-    "sidebar": { "collapsible": true, "defaultCollapsed": false },
+    "header": {
+      "enabled": true
+    },
+    "sidebar": {
+      "collapsible": true,
+      "defaultCollapsed": false
+    },
     "optionsMenu": {
       "position": "header",
-      "components": { "search": true, "themeSwitch": true }
+      "components": {
+        "search": true,
+        "themeSwitch": true
+      }
     }
   },
-
   "navigation": [
     {
       "title": "Get Started",
       "icon": "rocket",
       "children": [
-        { "title": "Introduction", "path": "/" },
-        { "title": "Quickstart", "path": "/quickstart" },
-        { "title": "Installation", "path": "/installation" }
+        {
+          "title": "Introduction",
+          "path": "/"
+        },
+        {
+          "title": "Quickstart",
+          "path": "/quickstart"
+        },
+        {
+          "title": "Installation",
+          "path": "/installation"
+        }
       ]
     },
     {
       "title": "Concepts",
       "icon": "square-function",
       "children": [
-        { "title": "Glossary (junior-proof)", "path": "/concepts/glossary" },
-        { "title": "The intersection rule", "path": "/concepts/intersection-rule" },
-        { "title": "Delegated token lifecycle", "path": "/concepts/token-lifecycle" }
+        {
+          "title": "Glossary (junior-proof)",
+          "path": "/concepts/glossary"
+        },
+        {
+          "title": "The intersection rule",
+          "path": "/concepts/intersection-rule"
+        },
+        {
+          "title": "Delegated token lifecycle",
+          "path": "/concepts/token-lifecycle"
+        }
       ]
     },
     {
       "title": "Guides",
       "icon": "book-open",
       "children": [
-        { "title": "Consent (three verifiers)", "path": "/guides/consent" },
-        { "title": "Exchange & verify", "path": "/guides/exchange-and-verify" },
-        { "title": "Agentic registration", "path": "/guides/agent-registration" },
-        { "title": "Cookbook", "path": "/guides/cookbook" }
+        {
+          "title": "Consent (three verifiers)",
+          "path": "/guides/consent"
+        },
+        {
+          "title": "Exchange & verify",
+          "path": "/guides/exchange-and-verify"
+        },
+        {
+          "title": "Budget & JIT elevation",
+          "path": "/guides/budget-and-elevation"
+        },
+        {
+          "title": "Agentic registration",
+          "path": "/guides/agent-registration"
+        },
+        {
+          "title": "Cookbook",
+          "path": "/guides/cookbook"
+        }
       ]
     },
     {
       "title": "Security",
       "icon": "shield-check",
       "children": [
-        { "title": "Threat model & negative tests", "path": "/security/threat-model" }
+        {
+          "title": "Threat model & negative tests",
+          "path": "/security/threat-model"
+        }
       ]
     },
     {
       "title": "Reference",
       "icon": "book-marked",
       "children": [
-        { "title": "Configuration", "path": "/reference/config" },
-        { "title": "Audit stream & endpoints", "path": "/reference/audit-and-admin" },
-        { "title": "Troubleshooting (RFC 8693 errors)", "path": "/reference/troubleshooting" }
+        {
+          "title": "Configuration",
+          "path": "/reference/config"
+        },
+        {
+          "title": "Audit stream & endpoints",
+          "path": "/reference/audit-and-admin"
+        },
+        {
+          "title": "Troubleshooting (RFC 8693 errors)",
+          "path": "/reference/troubleshooting"
+        }
       ]
     },
     {
       "title": "Links",
       "children": [
-        { "title": "GitHub", "path": "https://github.com/padosoft/laravel-iam-agents", "external": true },
-        { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/laravel-iam-agents", "external": true }
+        {
+          "title": "GitHub",
+          "path": "https://github.com/padosoft/laravel-iam-agents",
+          "external": true
+        },
+        {
+          "title": "Packagist",
+          "path": "https://packagist.org/packages/padosoft/laravel-iam-agents",
+          "external": true
+        }
       ]
     }
   ],
-
   "footer": {
     "style": "minimal",
     "branding": true,
@@ -91,23 +152,46 @@
       {
         "title": "Project",
         "links": [
-          { "title": "GitHub", "path": "https://github.com/padosoft/laravel-iam-agents", "external": true },
-          { "title": "Packagist", "path": "https://packagist.org/packages/padosoft/laravel-iam-agents", "external": true }
+          {
+            "title": "GitHub",
+            "path": "https://github.com/padosoft/laravel-iam-agents",
+            "external": true
+          },
+          {
+            "title": "Packagist",
+            "path": "https://packagist.org/packages/padosoft/laravel-iam-agents",
+            "external": true
+          }
         ]
       },
       {
         "title": "Ecosystem",
         "links": [
-          { "title": "laravel-iam-server", "path": "https://doc.laravel-iam-server.padosoft.com", "external": true },
-          { "title": "laravel-iam-client", "path": "https://doc.laravel-iam-client.padosoft.com", "external": true },
-          { "title": "laravel-iam-contracts", "path": "https://doc.laravel-iam-contracts.padosoft.com", "external": true }
+          {
+            "title": "laravel-iam-server",
+            "path": "https://doc.laravel-iam-server.padosoft.com",
+            "external": true
+          },
+          {
+            "title": "laravel-iam-client",
+            "path": "https://doc.laravel-iam-client.padosoft.com",
+            "external": true
+          },
+          {
+            "title": "laravel-iam-contracts",
+            "path": "https://doc.laravel-iam-contracts.padosoft.com",
+            "external": true
+          }
         ]
       }
     ]
   },
-
   "plugins": {
-    "search": { "enabled": true, "semantic": true, "placeholder": "Search the docs…" },
+    "search": {
+      "enabled": true,
+      "semantic": true,
+      "placeholder": "Search the docs…"
+    },
     "git": {
       "repo": "https://github.com/padosoft/laravel-iam-agents",
       "branch": "main",
@@ -120,11 +204,20 @@
       "defaultDescription": "Delegated access for AI agents: two identities per token (sub = user, act = agent), strict intersection authority, fail-closed, revocable, audited.",
       "aiBots": true,
       "openGraph": {},
-      "twitter": { "cardType": "summary_large_image" }
+      "twitter": {
+        "cardType": "summary_large_image"
+      }
     },
-    "sitemap": { "defaultChangefreq": "weekly", "defaultPriority": 0.8 },
+    "sitemap": {
+      "defaultChangefreq": "weekly",
+      "defaultPriority": 0.8
+    },
     "mermaid": {},
-    "llms": { "fullContext": true },
-    "analytics": { "enabled": false }
+    "llms": {
+      "fullContext": true
+    },
+    "analytics": {
+      "enabled": false
+    }
   }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Padosoft\Iam\Agents\Consent;
 
+use Padosoft\Iam\Contracts\Delegation\DelegationBudget;
+
 /**
  * I parametri del consenso che l'utente sta approvando: QUALE agente, QUALI scope,
  * per QUANTO, a QUALE scopo. Il binding hash canonico (JSON a chiavi fisse, scope
@@ -23,6 +25,8 @@ final readonly class ConsentPayload
         array $scopes,
         public int $ttlSeconds,
         public string $purpose,
+        // SEMPRE in coda con default (lezione flow v2.2.1: i call site posizionali non si rompono).
+        public ?DelegationBudget $budget = null,
     ) {
         if ($this->agentId === '' || $this->purpose === '' || $this->ttlSeconds <= 0) {
             throw new \InvalidArgumentException('ConsentPayload incompleto (agentId/purpose/ttl).');
@@ -38,12 +42,19 @@ final readonly class ConsentPayload
     /** Canonicalizzazione anti delimiter-injection: JSON a chiavi fisse, mai concatenazione. */
     public function canonical(): string
     {
-        return json_encode([
+        $canonical = [
             'agent' => $this->agentId,
             'scopes' => $this->scopes,
             'ttl' => $this->ttlSeconds,
             'purpose' => $this->purpose,
-        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        ];
+        // Il budget entra nel binding SOLO quando presente: i consensi senza budget
+        // mantengono l'hash storico (BC con le conferme già emesse).
+        if ($this->budget !== null) {
+            $canonical['budget'] = $this->budget->toArray();
+        }
+
+        return json_encode($canonical, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
 
     public function bindingHash(): string

@@ -23,6 +23,11 @@ the exact parameters** being approved.
 TTL — the binding hash diverges and the confirmation is **refused**. The user approved *that*
 delegation, not a similar one.
 
+**Budget joins the binding (v1.1):** an optional `budget` object (`amount`/`currency`/`tokens`/
+`calls`) on both calls is the fifth bound parameter — the user approves the *intensity* together
+with the authority, and a budget changed after the challenge invalidates the confirmation like any
+other tampered parameter. See [Budget & elevation](/guides/budget-and-elevation).
+
 **One-shot:** `iam_delegation_grants.consent_confirmation_id` is UNIQUE — the same confirmation can
 never create two grants, even under concurrency.
 
