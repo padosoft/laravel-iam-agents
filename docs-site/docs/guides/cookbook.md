@@ -53,11 +53,11 @@ confirmed per-action on screen; the server re-validates*. Delegation is the serv
    actions, a rebel-step-up purpose with dynamic linking on the action's parameters).
 4. Revocation in the app profile calls `DELETE /iam/me/delegations/{grantId}` — one tap.
 
-## Recipe 4 — JIT re-consent instead of a flat deny (bridge to v2)
+## Recipe 4 — JIT elevation instead of a flat deny (v1.1)
 
-When an agent hits `invalid_scope` (outside the intersection), don't dead-end: surface a
-re-consent ask to the delegating user — open a **new consent challenge** for the wider scopes
-(dynamic linking makes the wider ask explicit), and retry the exchange only after the user confirms.
-In flow-ai this maps to pausing the node (approval gate) rather than failing the run. The v2
-roadmap upgrades this into multi-channel JIT elevation via rebel-channels; the flow shape is the
-same.
+When an agent hits `invalid_scope` (outside the intersection), don't dead-end: open a **JIT
+elevation request** on the grant (`DelegationElevationService::request()` — extra scopes +
+reason). The delegating user gets nudged out-of-band (rebel-channels, best-effort), approves
+with a step-up re-consent bound to exactly the extra scopes, and the agent re-exchanges with the
+widened grant. In flow-ai this maps to pausing the node (approval gate) rather than failing the
+run. Full mechanics: [Budget & elevation](/guides/budget-and-elevation).

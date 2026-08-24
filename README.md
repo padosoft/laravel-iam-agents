@@ -74,11 +74,11 @@ vendors would have to build from scratch:
 | **Dual decision IDs** — replay *why the user side allowed* and *why the agent side allowed*, separately | ✅ | ❌ | ❌ |
 | **Tamper-evident audit** (hash-chained `stream=delegation`, every refused exchange included) | ✅ | plain logs | plain logs |
 | **User-facing delegation timeline** ("what did my agents do?") + one-click revoke | ✅ | admin-only audit | admin-only audit |
-| **Budget-bounded delegation** — scopes bound authority, budgets bound intensity (`laravel-ai-finops`) | 🔜 roadmap | ❌ | ❌ |
-| **JIT scope elevation, multi-channel** — out-of-band re-consent via Telegram/WhatsApp/SMS/voice (`laravel-rebel-channels`) | 🔜 roadmap | ❌ | CIBA (push/SMS) |
-| **Anomaly detection with auto-suspend** on the delegation stream (`laravel-rebel-ai-guard`) | 🔜 roadmap | ❌ | ❌ |
-| **EU AI Act native** — grants as Art. 14 human-oversight items (`laravel-ai-act-compliance`) | 🔜 roadmap | ❌ | ❌ |
-| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 41 tests, every deny asserted | ❌ | ❌ |
+| **Budget-bounded delegation** — scopes bound authority, budgets bound intensity: grant-level €/token/call caps, metered by [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) ≥ 1.6, fail-closed at exchange | ✅ | ❌ | ❌ |
+| **JIT scope elevation, multi-channel** — out-of-band nudge via [laravel-rebel-channels](https://github.com/padosoft/laravel-rebel-channels) ≥ 0.1.2 (Telegram/WhatsApp/SMS/voice), approval = bound in-app re-consent | ✅ | ❌ | CIBA (push/SMS) |
+| **Anomaly detection with auto-suspend** on the delegation stream — exchange bursts + scope probing, opt-in kill-switch via [laravel-rebel-ai-guard](https://github.com/padosoft/laravel-rebel-ai-guard) ≥ 0.1.3 | ✅ | ❌ | ❌ |
+| **EU AI Act native** — grants as Art. 14 human-oversight items, agents in the Art. 6 risk register via [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) ≥ 1.8 | ✅ | ❌ | ❌ |
+| **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 57 tests, every deny asserted | ❌ | ❌ |
 | Gated agentic registration (RFC 7591 subset + `auth.md` discovery), human approval only | ✅ | agent signup | ❌ |
 
 ## The agent lifecycle — humans stay in charge
@@ -242,7 +242,11 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | [laravel-flow-ai](https://github.com/padosoft/laravel-flow-ai) ≥ 1.1 | Bounded agent runtime: `DelegatedIdentityResolver` seam, per-run credentials to MCP servers via process env, `GrantRevokedException` halts BEFORE the next tool call |
 | [laravel-iam-console](https://github.com/padosoft/laravel-iam-console) ≥ 1.2 | The deployable console: **Agents** page (approve with pasted JWKS = the human gate), **Delegations** page (org-wide grants, kill-switch revoke), `delegation` audit stream |
 | [laravel-rebel-step-up](https://github.com/padosoft/laravel-rebel-step-up) ≥ 0.2 | PSD2-grade consent: set `iam-agents.consent.verifier` to `RebelStepUpConsentVerifier::class` and the *(agent, scopes, ttl, purpose)* binding is enforced by rebel's dynamic linking, not emulated |
-| [laravel-ai-guardrails](https://github.com/padosoft/laravel-ai-guardrails) · [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) · [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) | Tool firewall · budgets per agent identity · EU AI Act oversight |
+| [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) ≥ 1.6 | The delegation budget meter: ledger-backed `DelegationBudgetGuard` — an exhausted grant budget refuses the next exchange ([guide](https://doc.laravel-ai-finops.padosoft.com/guides/delegation-budgets)) |
+| [laravel-rebel-channels](https://github.com/padosoft/laravel-rebel-channels) ≥ 0.1.2 | `ChannelElevationNotifier`: JIT elevation nudges over SMS/WhatsApp/Telegram/Discord/voice with multi-channel fallback — informative only, approval stays in-app |
+| [laravel-rebel-ai-guard](https://github.com/padosoft/laravel-rebel-ai-guard) ≥ 0.1.3 | Delegation anomaly rules (exchange burst, scope probing) + opt-in auto-suspend through `AgentLifecycle` |
+| [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) ≥ 1.8 | Grants as Art. 14 human-oversight records (with consent evidence), agents in the Art. 6 risk register ([guide](https://doc.laravel-ai-act-compliance.padosoft.com/guides/iam-delegation)) |
+| [laravel-ai-guardrails](https://github.com/padosoft/laravel-ai-guardrails) | Tool firewall — argument-level confused-deputy defence, complementary to the token layer |
 
 ## Documentation
 
