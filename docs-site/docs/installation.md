@@ -50,6 +50,7 @@ delegation depth 1, registration **off**.
 
 ## Versioning
 
-Semver on 0.x: breaking changes bump the minor until 1.0. The wire protocol (RFC 8693 params,
-`act`/`pds_dgr` claims, `typ: delegated+jwt`) and the fail-closed invariants are **stable from
-0.1.0** and will not loosen — v2 work (multi-hop `act` chains, operator claim) is strictly additive.
+**v1.0: the API is stable.** Plain semver from here: breaking changes require a major, new
+capability lands in minors, fixes in patches. The wire protocol (RFC 8693 params, `act`/`pds_dgr`
+claims, `typ: delegated+jwt`) and the fail-closed invariants will not loosen — ever: v2 work
+(multi-hop `act` chains, operator claim) is strictly additive on this contract.
