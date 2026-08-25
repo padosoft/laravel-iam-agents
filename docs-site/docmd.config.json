@@ -91,6 +91,11 @@
           "path": "/guides/budget-and-elevation"
         },
         {
+          "title": "Run Correlation",
+          "path": "/guides/run-correlation",
+          "icon": "link"
+        },
+        {
           "title": "Agentic registration",
           "path": "/guides/agent-registration"
         },

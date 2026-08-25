@@ -10,6 +10,20 @@ return [
     // pattern config-flag + 409 come per iam-directory.
     'enabled' => env('IAM_AGENTS_ENABLED', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Correlazione con il run AI (laravel/ai 0.11+)
+    |--------------------------------------------------------------------------
+    |
+    | Stampa `invocation_id` (e l'hop padre, quando un agente è usato come tool)
+    | sul contesto di delega ambientale, così ogni log e audit record emesso
+    | durante il run si unisce ai record di finops e di eval per la stessa
+    | chiave. No-op senza laravel/ai o senza un contesto di delega idratato.
+    |
+    */
+
+    'run_correlation' => env('IAM_AGENTS_RUN_CORRELATION', true),
+
     'tokens' => [
         // TTL dei token delegati (secondi). Corti BY DESIGN: il ri-exchange È il check di
         // freshness della revoca. Hard cap 900 applicato nel codice: alzarlo oltre converte
