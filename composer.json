@@ -26,10 +26,12 @@
         "orchestra/testbench": "^9.0|^10.0",
         "padosoft/laravel-rebel-step-up": "^0.2",
         "pestphp/pest": "^3.0",
-        "pestphp/pest-plugin-laravel": "^3.0"
+        "pestphp/pest-plugin-laravel": "^3.0",
+        "laravel/ai": "^0.11"
     },
     "suggest": {
-        "padosoft/laravel-rebel-step-up": "Consenso PSD2-grade con dynamic linking reale (RebelStepUpConsentVerifier) al posto del verifier nativo (^0.2)"
+        "padosoft/laravel-rebel-step-up": "Consenso PSD2-grade con dynamic linking reale (RebelStepUpConsentVerifier) al posto del verifier nativo (^0.2)",
+        "laravel/ai": "Correla il contesto di delega al run dell'SDK AI: `invocation_id` e l'hop padre su ogni log e audit record emesso durante il run (^0.11, dove gli eventi di run sono stati introdotti)."
     },
     "autoload": {
         "psr-4": {

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Padosoft\Iam\Agents\Audit;
 
+use Illuminate\Support\Facades\Context;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationElevationModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
+use Padosoft\Iam\Agents\Support\RunCorrelation;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
 use Padosoft\Iam\Domain\Audit\Pii\AuditRecorder;
 
@@ -23,6 +25,12 @@ use Padosoft\Iam\Domain\Audit\Pii\AuditRecorder;
  *
  * NB naming metadata: `grant_id`/`*_confirmation_id` — MAI chiavi con substring
  * `token` (l'admin API redige per substring).
+ *
+ * Ogni scrittura passa da {@see self::record()}, che allega — quando c'è — l'id
+ * del run AI dentro cui l'evento è avvenuto (§10: "chi ha fatto cosa, per conto
+ * di chi", più il *lavoro* a cui appartiene). Senza, la console può solo
+ * ordinare gli eventi per timestamp e sperare: due agenti che scambiano nello
+ * stesso secondo diventano indistinguibili proprio quando serve distinguerli.
  */
 final class DelegationAudit
 {
@@ -30,9 +38,48 @@ final class DelegationAudit
 
     public function __construct(private readonly AuditRecorder $recorder) {}
 
+    /**
+     * Unico punto di scrittura: correla l'evento al run AI in corso, se c'è.
+     *
+     * Gli id vivono nel Laravel Context (idratato da `IamCanDelegated`, stampato
+     * da {@see RunCorrelation} sugli eventi di step di laravel/ai ≥ 0.11), quindi
+     * arrivano gratis anche dai job accodati — Context si deidrata e reidrata da
+     * solo. Su un'app senza delega attiva, o senza SDK, il contesto non esiste e
+     * questo metodo è un passthrough: un evento non si inventa una correlazione.
+     *
+     * NON sovrascrive una chiave già presente nel metadata del chiamante: se un
+     * emettitore sa qualcosa di più preciso sul run, la sua versione vince.
+     *
+     * @param  array<string, mixed>  $event
+     */
+    private function record(array $event): void
+    {
+        $context = Context::get(RunCorrelation::CONTEXT_KEY);
+
+        if (is_array($context)) {
+            $correlation = array_filter(
+                [
+                    'invocation_id' => $context['invocation_id'] ?? null,
+                    'parent_invocation_id' => $context['parent_invocation_id'] ?? null,
+                    'parent_tool_invocation_id' => $context['parent_tool_invocation_id'] ?? null,
+                ],
+                static fn ($value): bool => is_string($value) && $value !== '',
+            );
+
+            if ($correlation !== []) {
+                $metadata = $event['metadata_json'] ?? [];
+                $event['metadata_json'] = is_array($metadata)
+                    ? [...$correlation, ...$metadata]
+                    : $correlation;
+            }
+        }
+
+        $this->recorder->record($event);
+    }
+
     public function agentRegistered(Agent $agent, string $via): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.agent.registered',
             'actor_agent_id' => $agent->id,
@@ -45,7 +92,7 @@ final class DelegationAudit
 
     public function agentLifecycle(Agent $agent, string $transition, ?SubjectRef $by = null): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.agent.'.$transition,
             'actor_user_id' => $by?->type === 'user' ? $by->id : null,
@@ -59,7 +106,7 @@ final class DelegationAudit
 
     public function grantCreated(DelegationGrantModel $grant): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.grant.created',
             'actor_user_id' => $grant->user_type === 'user' ? $grant->user_id : null,
@@ -80,7 +127,7 @@ final class DelegationAudit
 
     public function grantRevoked(DelegationGrantModel $grant, SubjectRef $revokedBy): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.grant.revoked',
             'actor_user_id' => $revokedBy->type === 'user' ? $revokedBy->id : null,
@@ -98,7 +145,7 @@ final class DelegationAudit
     /** Richiesta di JIT elevation aperta (scope extra + reason, finestra pending). */
     public function elevationRequested(DelegationElevationModel $elevation, string $agentName): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.elevation.requested',
             'target_type' => 'delegation_elevation',
@@ -116,7 +163,7 @@ final class DelegationAudit
     /** Esito della consegna out-of-band (rebel-channels): mai inghiottita muta. */
     public function elevationNotified(DelegationElevationModel $elevation, bool $delivered, ?string $error = null): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => $delivered ? 'iam.delegation.elevation.notified' : 'iam.delegation.elevation.notify_failed',
             'target_type' => 'delegation_elevation',
@@ -132,7 +179,7 @@ final class DelegationAudit
     /** Decisione del delegante: approved (con evidenza ri-consenso) o denied. */
     public function elevationDecided(DelegationElevationModel $elevation, string $decision): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => 'iam.delegation.elevation.'.$decision,
             'target_type' => 'delegation_elevation',
@@ -155,7 +202,7 @@ final class DelegationAudit
      */
     public function exchange(string $agentId, ?string $userSubject, bool $issued, array $scopes = [], ?string $grantId = null, ?string $refusalReason = null): void
     {
-        $this->recorder->record([
+        $this->record([
             'stream' => self::STREAM,
             'event_type' => $issued ? 'iam.delegation.exchange.issued' : 'iam.delegation.exchange.refused',
             'actor_agent_id' => $agentId,

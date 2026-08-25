@@ -192,6 +192,38 @@ domain events (`DelegationGrantCreated/Revoked`, `AgentApproved/Suspended/Retire
 [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance)'s Art. 14
 oversight. Details: [Budget & elevation guide](https://doc.laravel-iam-agents.padosoft.com/guides/budget-and-elevation).
 
+## Correlating a delegation to the work it did (v1.2)
+
+The delegation context — *who*, *through which agent*, *under which grant* — is hydrated once at
+the edge and rides the Laravel Context into every log line and every queued job, so any package
+answers "who did what, on whose behalf" without knowing delegation exists.
+
+What was missing was the key that joins that context to the **work**. A FinOps ledger row or an
+eval trajectory could only be matched to an agent's run by timestamp proximity, which is a guess
+that fails precisely when two runs overlap.
+
+`laravel/ai` **0.11** threads an `invocationId` through an entire run and reports it on every step
+and tool event — and when an agent is used as a **tool** of another agent, the child run knows the
+invocation and the exact tool call it was delegated from. That is the same parent→child shape as the
+`act` chain, seen from the runtime instead of from the token.
+
+So the module stamps it: while a delegated run is executing, `invocation_id` (and the parent hop)
+sit on the ambient delegation context, and every record any package writes carries them. The stamp
+is **cleared when the run ends** — leaving it attached is worse than never setting it, because every
+later log would be attributed to a run that is no longer going.
+
+Riding the ambient context gets the ids into the *host application's* logs. It does not get them
+into **our** audit — the server's recorder writes what its callers hand it and knows nothing about
+Laravel Context — so `DelegationAudit` attaches them itself: every delegation event, exchange
+refused included, carries `invocation_id` and the parent hop inside its metadata. That is what lets
+the [console](https://github.com/padosoft/laravel-iam-console) show a **Run** column and walk the
+chain instead of ordering by timestamp and hoping.
+
+No wiring, and no new dependency: `laravel/ai` is not required by this module, the listener is
+guarded on the 0.11 event classes existing, and a run with no delegation context is left alone
+rather than given an empty one. An event outside a run gets no correlation at all — never an empty
+id, never an invented parent. Turn it off with `iam-agents.run_correlation`.
+
 ## What will get an agent denied (and tested)
 
 Every one of these is a **negative test in the shipped suite** — security proven, not promised:

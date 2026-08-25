@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace Padosoft\Iam\Agents;
 
 use DateInterval;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Facades\Route;
+use Laravel\Ai\Events\AgentFailed;
+use Laravel\Ai\Events\AgentPrompted;
+use Laravel\Ai\Events\StartingStep;
 use League\OAuth2\Server\AuthorizationServer;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
 use Padosoft\Iam\Agents\Consent\NullConsentVerifier;
@@ -16,6 +20,7 @@ use Padosoft\Iam\Agents\Registry\AgentLifecycleService;
 use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Agents\Support\DelegationSessionResolver;
 use Padosoft\Iam\Agents\Support\NullDelegationSessionResolver;
+use Padosoft\Iam\Agents\Support\RunCorrelation;
 use Padosoft\Iam\Contracts\Authorization\AuthorizationEngine;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
 use Padosoft\Iam\Contracts\Delegation\AgentLifecycle;
@@ -125,6 +130,29 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         }
     }
 
+    /**
+     * Correla il contesto di delega al run dell'SDK AI (laravel/ai 0.11+).
+     *
+     * Guardata su class_exists: laravel/ai non è una dipendenza di questo modulo —
+     * un IAM che non ospita agenti AI non deve installarlo per funzionare.
+     */
+    private function bootRunCorrelation(): void
+    {
+        if (config('iam-agents.run_correlation', true) !== true) {
+            return;
+        }
+
+        if (!class_exists(StartingStep::class)) {
+            return;
+        }
+
+        $events = $this->app->make(Dispatcher::class);
+
+        $events->listen(StartingStep::class, [RunCorrelation::class, 'handleStartingStep']);
+        $events->listen(AgentPrompted::class, [RunCorrelation::class, 'handleRunFinished']);
+        $events->listen(AgentFailed::class, [RunCorrelation::class, 'handleRunFinished']);
+    }
+
     public function packageBooted(): void
     {
         // P4: il modulo si dichiara al pannello via GET /capabilities (contratto del server:
@@ -144,6 +172,8 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         if (!$this->enabled()) {
             return;
         }
+
+        $this->bootRunCorrelation();
 
         // Self-service ("le mie deleghe") — guard dell'app host.
         $middleware = config('iam-agents.self_service.middleware', ['web', 'auth']);
