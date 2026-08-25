@@ -38,7 +38,7 @@ final class RunCorrelation
     {
         $context = Context::get(self::CONTEXT_KEY);
 
-        if (! is_array($context)) {
+        if (!is_array($context)) {
             return;
         }
 
@@ -68,7 +68,7 @@ final class RunCorrelation
     {
         $context = Context::get(self::CONTEXT_KEY);
 
-        if (! is_array($context) || ($context['invocation_id'] ?? null) !== $event->invocationId) {
+        if (!is_array($context) || ($context['invocation_id'] ?? null) !== $event->invocationId) {
             return;
         }
 
