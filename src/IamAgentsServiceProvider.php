@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Padosoft\Iam\Agents;
 
 use DateInterval;
+use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Facades\Route;
 use Laravel\Ai\Events\AgentFailed;
 use Laravel\Ai\Events\AgentPrompted;
@@ -145,7 +146,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             return;
         }
 
-        $events = $this->app['events'];
+        $events = $this->app->make(Dispatcher::class);
 
         $events->listen(StartingStep::class, [RunCorrelation::class, 'handleStartingStep']);
         $events->listen(AgentPrompted::class, [RunCorrelation::class, 'handleRunFinished']);
