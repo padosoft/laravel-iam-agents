@@ -43,9 +43,32 @@ queries the design promised become exact:
 
 ```sql
 -- Everything one run cost, did and decided, across packages.
-SELECT * FROM ai_finops_run_events   WHERE invocation_id = 'inv_01K2...';
-SELECT * FROM iam_audit_events       WHERE json_extract(context, '$.invocation_id') = 'inv_01K2...';
+SELECT * FROM ai_finops_run_events WHERE invocation_id = 'inv_01K2...';
+SELECT * FROM iam_audit_events
+ WHERE stream = 'delegation'
+   AND json_extract(metadata_json, '$.invocation_id') = 'inv_01K2...';
 ```
+
+## The context is only half of it
+
+Riding the ambient context gets the ids into **the host application's** logs. It
+does not get them into **our** audit, because `iam-server`'s recorder writes what
+its callers hand it and knows nothing about Laravel Context.
+
+So `DelegationAudit` attaches them itself: every delegation event — exchange
+issued *and* refused, grant created and revoked, agent lifecycle, elevation —
+carries `invocation_id`, and the parent hop when there is one, inside its
+`metadata_json`.
+
+That is what makes the **Audit log** screen of
+[`laravel-iam-console`](https://github.com/padosoft/laravel-iam-console) able to
+show a Run column and walk the chain, instead of ordering by timestamp and
+hoping. Two agents exchanging in the same second are otherwise
+indistinguishable, exactly when you most need to tell them apart.
+
+A caller that already knows something more precise about the run wins: the
+attached keys never overwrite metadata the emitter wrote. And an event outside a
+run gets nothing — no empty `invocation_id`, no invented parent.
 
 ## The parent hop is the act chain, from the other side
 

@@ -212,9 +212,17 @@ sit on the ambient delegation context, and every record any package writes carri
 is **cleared when the run ends** — leaving it attached is worse than never setting it, because every
 later log would be attributed to a run that is no longer going.
 
+Riding the ambient context gets the ids into the *host application's* logs. It does not get them
+into **our** audit — the server's recorder writes what its callers hand it and knows nothing about
+Laravel Context — so `DelegationAudit` attaches them itself: every delegation event, exchange
+refused included, carries `invocation_id` and the parent hop inside its metadata. That is what lets
+the [console](https://github.com/padosoft/laravel-iam-console) show a **Run** column and walk the
+chain instead of ordering by timestamp and hoping.
+
 No wiring, and no new dependency: `laravel/ai` is not required by this module, the listener is
 guarded on the 0.11 event classes existing, and a run with no delegation context is left alone
-rather than given an empty one. Turn it off with `iam-agents.run_correlation`.
+rather than given an empty one. An event outside a run gets no correlation at all — never an empty
+id, never an invented parent. Turn it off with `iam-agents.run_correlation`.
 
 ## What will get an agent denied (and tested)
 
