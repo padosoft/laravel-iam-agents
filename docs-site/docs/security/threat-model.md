@@ -70,6 +70,22 @@ not the one who *set* it.
 Revoking a grant and suspending an agent are never blocked by a freeze: a kill switch that blocks
 the incident response it caused is worse than none.
 
+### An agent that lies about what it did
+
+Receipts do not prevent it — nothing can — but they change who carries the cost. A receipt is
+minted **only** by the holder of a valid delegated token, and its identities are copied from that
+verified token rather than from the request body, so an agent cannot sign for another agent or for
+a user who never delegated to it. What it *can* do is sign a false statement about its own
+action — and that statement is non-repudiable, which makes it evidence against the agent.
+
+Two refusals close the timing hole. A **revoked or expired grant** cannot mint: otherwise an agent
+just cut off could backdate its own history precisely when it most wants to. A **frozen** fleet
+cannot mint either: signing is an action.
+
+The issuer's signature attests the identity binding, **not** the truth of the action. Stating that
+in the contract is part of the design: a receipt read as proof the order shipped would be worse
+than no receipt.
+
 ## The negative-test contract
 
 These must stay red-line tests in every consumer integration too:
@@ -98,6 +114,12 @@ These must stay red-line tests in every consumer integration too:
 | The same admin approving a lift twice (v1.3) | counted once; quorum unchanged |
 | `lift_quorum` lowered in config after a freeze (v1.3) | ignored — the freeze keeps the quorum it was created with |
 | Freeze state unreadable (v1.3) | denied `freeze_state_unavailable` — "I could not check" is not "it is fine" |
+| Minting a receipt with no token / a token this issuer did not sign (v1.4) | refused |
+| Minting from a **plain user token** (no `act`) (v1.4) | refused — it would make a user sign as an agent |
+| Minting on a revoked or expired grant (v1.4) | refused — no backdated history |
+| Minting with a suspended agent, or while frozen (v1.4) | refused |
+| A token citing a grant belonging to a **different** (user, agent) pair (v1.4) | refused |
+| `verify()` handed a delegated access token as "a receipt" (v1.4) | refused (`aud` + `pds_att`) |
 
 ## Residual risks, stated honestly
 

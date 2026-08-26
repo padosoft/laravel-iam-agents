@@ -24,6 +24,8 @@ subscriptions (server ≥ 1.23 revocation push). Event types:
 | `iam.delegation.freeze.applied` | Delegation frozen by one admin — cites scope, reason, and the `required_quorum` photographed at that moment |
 | `iam.delegation.freeze.lift_approved` | One approval toward lifting. Recorded for **every** approval, duplicates included: *who wanted the agents running again* is answered with the full list, not with whoever signed last |
 | `iam.delegation.freeze.lifted` | Quorum reached, delegation resumed — cites the approval count and who cast the last one |
+| `iam.delegation.receipt.issued` | A signed action receipt was minted — cites the action, outcome, PDP decision and the **payload digest** (not the JWS: the digest is what keeps the receipt probative after key rotation, and copying the JWS would double the data without adding a guarantee) |
+| `iam.delegation.receipt.refused` | A minting attempt was refused, with the reason the client never sees |
 
 ::: callout warning "Metadata naming rule" icon:key
 Audit metadata never uses keys containing the substring `token` — the server's admin APIs redact by
@@ -56,12 +58,19 @@ slugs: `iam:agents.manage`, `iam:delegations.manage`, `iam:decisions.check`.
 | Route | Does |
 | --- | --- |
 | `GET /` | "My delegations": agent, scopes, purpose, status, expiry, consent AAL, budget — plus `pending_elevations` (v1.1) |
+| `GET /receipts` | "What did my agents do": signed action receipts, each with its own JWS to export and verify against the public JWKS |
 | `POST /consent-challenge` | Step 1: open the bound consent challenge (optional `budget` joins the binding) |
 | `POST /` | Step 2: verify + create the grant (one-shot confirmation) |
 | `DELETE /{grantId}` | One-click revoke — **no step-up, ever** |
 | `POST /elevations/{id}/consent-challenge` | JIT elevation, step 1: step-up bound to the **extra** scopes |
 | `POST /elevations/{id}/approve` | JIT elevation, step 2: verify + extend the grant (one-shot) |
 | `POST /elevations/{id}/deny` | One click — denying never requires step-up |
+
+## Agent surface (authenticated by the delegated token itself)
+
+| Route | Does |
+| --- | --- |
+| `POST /iam/agent/receipts` | Mints a signed action receipt. The **`Authorization: Bearer` delegated token is the credential**; `sub`/`act`/`pds_dgr` come from it, never from the body. Refusals are always the generic `receipt_not_issued` |
 
 ## Discovery (public when the module is enabled)
 

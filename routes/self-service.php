@@ -12,6 +12,10 @@ Route::post('/consent-challenge', [SelfServiceDelegationsController::class, 'con
 Route::post('/', [SelfServiceDelegationsController::class, 'store']);
 Route::delete('/{grantId}', [SelfServiceDelegationsController::class, 'destroy']);
 
+// "Cosa hanno fatto i miei agenti": la timeline delle ricevute firmate, ognuna
+// col proprio JWS, esportabile e verificabile da chiunque col JWKS pubblico.
+Route::get('/receipts', [SelfServiceDelegationsController::class, 'receipts']);
+
 // JIT elevation (v1.1): il delegante approva (RI-consenso step-up, due passi) o nega
 // (one-click) le richieste di scope aggiuntivi. Le pending sono nella GET / (index).
 Route::post('/elevations/{elevationId}/consent-challenge', [SelfServiceDelegationsController::class, 'elevationChallenge']);

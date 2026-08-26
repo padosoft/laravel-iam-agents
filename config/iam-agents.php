@@ -97,6 +97,26 @@ return [
         'lift_quorum' => env('IAM_AGENTS_FREEZE_LIFT_QUORUM', 2),
     ],
 
+    'receipts' => [
+        // Le ricevute d'azione delegata: JWS firmati dall'issuer con cui un agente
+        // attesta ciò che ha fatto, e che l'utente vede nella propria timeline.
+        // ON di default: coniarle richiede comunque un token delegato valido e una
+        // grant viva, quindi la superficie non esiste finché non esiste una delega.
+        'enabled' => env('IAM_AGENTS_RECEIPTS_ENABLED', true),
+
+        // Throttle dell'endpoint di emissione ("tentativi,minuti"). Firmare è
+        // economico: un agente in loop non deve poter riempire la tabella
+        // dell'evidenza.
+        'rate_limit' => env('IAM_AGENTS_RECEIPTS_RATE_LIMIT', '120,1'),
+
+        // `exp` del JWS. Una ricevuta non scade — l'evidenza non scade — ma il
+        // contratto TokenSigner impone un exp, quindi è messo molto lontano
+        // (10 anni) e resta una formalità. Ciò che limita davvero la verifica
+        // esterna è la rotazione delle chiavi: per orizzonti di anni, archivia il
+        // JWKS storico (il digest sigillato in catena resta probante comunque).
+        'ttl_seconds' => env('IAM_AGENTS_RECEIPTS_TTL', 315360000),
+    ],
+
     'registration' => [
         // Registrazione agentic (DCR RFC 7591 gated + auth.md/ID-JAG). OFF di default.
         // Le registrazioni atterrano SEMPRE in stato `pending`: Active solo con
