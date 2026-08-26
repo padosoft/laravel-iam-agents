@@ -21,6 +21,9 @@ subscriptions (server ≥ 1.23 revocation push). Event types:
 | `iam.delegation.elevation.requested` | JIT elevation request opened — cites `grant_id`, the **extra** scopes, the reason |
 | `iam.delegation.elevation.notified` / `notify_failed` | Out-of-band notifier outcome (best-effort: a failed delivery never cancels the request; the error is in metadata) |
 | `iam.delegation.elevation.approved` / `denied` | The human's decision — approval cites the re-consent `consent_confirmation_id` + AAL |
+| `iam.delegation.freeze.applied` | Delegation frozen by one admin — cites scope, reason, and the `required_quorum` photographed at that moment |
+| `iam.delegation.freeze.lift_approved` | One approval toward lifting. Recorded for **every** approval, duplicates included: *who wanted the agents running again* is answered with the full list, not with whoever signed last |
+| `iam.delegation.freeze.lifted` | Quorum reached, delegation resumed — cites the approval count and who cast the last one |
 
 ::: callout warning "Metadata naming rule" icon:key
 Audit metadata never uses keys containing the substring `token` — the server's admin APIs redact by
@@ -43,6 +46,9 @@ slugs: `iam:agents.manage`, `iam:delegations.manage`, `iam:decisions.check`.
 | `POST /agents/{id}/suspend` · `/retire` | Kill-switch / terminal retirement |
 | `GET /delegation-grants` | Org-wide grant search — each row carries `budget` and its live `pending_elevations` (id, extra scopes, reason, expiry): the admin SEES a pending authority ask, the delegating user stays the only one who decides |
 | `POST /delegation-grants/{id}/revoke` | Admin revocation |
+| `GET /delegation-freezes` · `GET /delegation-freezes/{id}` | Active freezes (add `include_lifted=1` for history), each with its approvals and how many are still missing |
+| `POST /delegation-freezes` | **Freeze.** One admin, no approval, immediate. `reason` required. Permission: `iam:delegations.manage` |
+| `POST /delegation-freezes/{id}/approve-lift` | One approval toward lifting; lifts when the quorum of **distinct** admins is met. Permission: `iam:delegations.unfreeze` — a slug of its own, granted to fewer people |
 | `POST /decisions/check-delegated` | The intersection decision endpoint for remote PEPs |
 
 ## Self-service (`iam/me/delegations`, host-app guard)

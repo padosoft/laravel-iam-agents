@@ -49,6 +49,27 @@ Dynamic linking: the confirmation is bound to the canonical hash of *(agent, sco
 Any parameter changed after the consent screen ⇒ binding mismatch ⇒ refused. The confirmation is
 one-shot (UNIQUE `consent_confirmation_id`).
 
+### An incident in progress (the fleet has to stop, now)
+
+The asymmetric kill switch: **one** admin with `iam:delegations.manage` freezes delegation —
+globally, per organization, or for one agent — with immediate effect on both issuance *and*
+delegated decisions, so tokens already in circulation stop deciding rather than running out their
+five-minute TTL. Lifting requires a quorum of **distinct** admins holding a separate permission,
+`iam:delegations.unfreeze`.
+
+The attack this specifically anticipates is the one *against the response*: an attacker (or a
+panicking operator) who wants the fleet running again before anyone has understood why it stopped.
+Hence the two rules that matter. The quorum is **photographed onto the freeze row** at freeze time,
+so lowering it in configuration afterwards changes nothing; and approvals are unique per identity at
+the **schema** level, so one admin cannot make a quorum alone by approving repeatedly.
+
+Whoever froze may approve like anyone else — excluding them would remove a signature from the person
+handling the incident without stopping anyone, since the attacker who wants to *lift* a freeze is
+not the one who *set* it.
+
+Revoking a grant and suspending an agent are never blocked by a freeze: a kill switch that blocks
+the incident response it caused is worse than none.
+
 ## The negative-test contract
 
 These must stay red-line tests in every consumer integration too:
@@ -71,6 +92,12 @@ These must stay red-line tests in every consumer integration too:
 | Consent confirm with a tampered budget (v1.1) | `ConsentFailedException` (binding mismatch) |
 | Elevation for scopes outside the agent `max_scopes` ceiling (v1.1) | refused (`ElevationException`) |
 | Elevation approve after `pending` expiry / by a different user (v1.1) | refused fail-closed |
+| Exchange while delegation is frozen (v1.3) | `invalid_grant` (audited `delegation_frozen: frz_… (scope)`) |
+| Delegated decision while frozen (v1.3) | denied, reason `delegation_frozen` |
+| Elevation requested while frozen (v1.3) | refused (`ElevationException`) — a frozen fleet does not widen its own authority |
+| The same admin approving a lift twice (v1.3) | counted once; quorum unchanged |
+| `lift_quorum` lowered in config after a freeze (v1.3) | ignored — the freeze keeps the quorum it was created with |
+| Freeze state unreadable (v1.3) | denied `freeze_state_unavailable` — "I could not check" is not "it is fine" |
 
 ## Residual risks, stated honestly
 
@@ -82,3 +109,7 @@ These must stay red-line tests in every consumer integration too:
   user-side deny still wins.
 - **Host app misconfiguration**: a missing session resolver or a Null verifier fails **closed**
   (nothing works), never open.
+- **A quorum larger than the team**: `lift_quorum` set above the number of people actually holding
+  `iam:delegations.unfreeze` makes a freeze unliftable. The value is deliberately not clamped to the
+  admin count — that count is the host's to know — so it is a configuration review item, not a
+  runtime guard.

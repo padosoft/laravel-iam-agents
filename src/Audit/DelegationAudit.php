@@ -7,6 +7,7 @@ namespace Padosoft\Iam\Agents\Audit;
 use Illuminate\Support\Facades\Context;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationElevationModel;
+use Padosoft\Iam\Agents\Models\DelegationFreezeModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Agents\Support\RunCorrelation;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
@@ -138,6 +139,76 @@ final class DelegationAudit
                 'grant_id' => $grant->id,
                 'user' => $grant->user_type.':'.$grant->user_id,
                 'revoked_by' => (string) $revokedBy,
+            ],
+        ]);
+    }
+
+    /**
+     * Kill switch: la delega è stata congelata da UN admin.
+     *
+     * `risk_level` alto non perché congelare sia pericoloso, ma perché è il
+     * segnale che qualcosa lo era: questo record è il primo che un incident
+     * responder cerca.
+     */
+    public function freezeApplied(DelegationFreezeModel $freeze): void
+    {
+        $this->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.freeze.applied',
+            'target_type' => 'delegation_freeze',
+            'target_id' => $freeze->id,
+            'risk_level' => 'high',
+            'metadata_json' => array_filter([
+                'freeze_id' => $freeze->id,
+                'scope' => $freeze->scope,
+                'scope_id' => $freeze->scope_id,
+                'reason' => $freeze->reason,
+                'frozen_by' => $freeze->frozen_by,
+                'required_quorum' => $freeze->required_quorum,
+            ], static fn ($v): bool => $v !== null),
+        ]);
+    }
+
+    /**
+     * Una approvazione alla rimozione. Auditata SEMPRE, anche quando il quorum non
+     * è ancora completo e anche quando è un doppione: "chi ha voluto far ripartire
+     * gli agenti" è una domanda a cui si risponde con l'elenco completo, non con
+     * il solo nome di chi ha dato l'ultima firma.
+     */
+    public function freezeLiftApproved(DelegationFreezeModel $freeze, SubjectRef $approver, int $collected, bool $duplicate): void
+    {
+        $this->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.freeze.lift_approved',
+            'actor_user_id' => $approver->type === 'user' ? $approver->id : null,
+            'target_type' => 'delegation_freeze',
+            'target_id' => $freeze->id,
+            'risk_level' => 'medium',
+            'metadata_json' => [
+                'freeze_id' => $freeze->id,
+                'approver' => (string) $approver,
+                'approvals' => $collected,
+                'required_quorum' => $freeze->required_quorum,
+                'duplicate' => $duplicate,
+            ],
+        ]);
+    }
+
+    /** Quorum raggiunto: la delega riparte. */
+    public function freezeLifted(DelegationFreezeModel $freeze, int $approvals): void
+    {
+        $this->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.freeze.lifted',
+            'target_type' => 'delegation_freeze',
+            'target_id' => $freeze->id,
+            'risk_level' => 'high',
+            'metadata_json' => [
+                'freeze_id' => $freeze->id,
+                'scope' => $freeze->scope,
+                'approvals' => $approvals,
+                'required_quorum' => $freeze->required_quorum,
+                'lifted_by' => $freeze->lifted_by,
             ],
         ]);
     }

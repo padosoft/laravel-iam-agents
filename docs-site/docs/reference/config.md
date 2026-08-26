@@ -50,6 +50,21 @@ meter) — a budgeted grant with no guard bound is refused at exchange, fail-clo
 | `elevation.purpose` | `iam-delegation-elevation` | Step-up purpose of the **re-consent** that approves an elevation (the request's reason is appended). Kebab-case, same rule as `consent.purpose` |
 | `elevation.notifier` | `null` | FQCN of the `ElevationNotifier` for the out-of-band nudge (e.g. [rebel-channels](https://github.com/padosoft/laravel-rebel-channels)). `null` = no notification; requests are still visible and decidable in self-service. Delivery is best-effort and audited — never authoritative |
 
+## Kill switch (asymmetric, v1.3)
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `kill_switch.lift_quorum` | `2` | Distinct admins required to lift a freeze. Freezing always takes exactly one. |
+
+The value is **photographed onto the freeze row** when the freeze is created and never
+re-read here at lift time — otherwise anyone able to edit this file would set it to `1`
+and unfreeze alone.
+
+`1` is allowed and means "no quorum"; the permission asymmetry
+(`iam:delegations.manage` to freeze, `iam:delegations.unfreeze` to approve a lift) still
+applies. Do not set a quorum larger than the number of people who actually hold
+`iam:delegations.unfreeze`, or the fleet cannot be restarted.
+
 ## Registration
 
 | Key | Default | Notes |

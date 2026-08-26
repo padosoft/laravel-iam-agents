@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Padosoft\Iam\Agents\Pdp;
 
 use Illuminate\Support\Str;
+use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
+use Padosoft\Iam\Agents\Freeze\DelegationFrozenException;
 use Padosoft\Iam\Contracts\Authorization\AuthorizationEngine;
 use Padosoft\Iam\Contracts\Delegation\AgentRegistry;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
@@ -31,6 +33,7 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
         private readonly AuthorizationEngine $inner,
         private readonly AgentRegistry $agents,
         private readonly DelegationGrantStore $grants,
+        private readonly ?DelegationFreezeService $freeze = null,
     ) {}
 
     /**
@@ -60,6 +63,19 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
     public function checkDelegated(SubjectRef $subject, DelegationChain $chain, array $query): array
     {
         $decisionId = 'dec_'.Str::ulid()->toBase32();
+
+        // Kill switch, PRIMO di tutto. È il punto che rende il freeze un vero kill
+        // switch e non solo uno stop alle nuove emissioni: i token delegati già in
+        // circolazione restano validi fino alla scadenza (5 minuti), ma da qui in
+        // poi non decidono più nulla. Fermare l'emissione e basta lascerebbe una
+        // finestra di TTL in cui la flotta "congelata" continua ad agire.
+        if ($this->freeze !== null) {
+            try {
+                $this->freeze->assertNotFrozen($chain->current()->subject->id);
+            } catch (DelegationFrozenException $e) {
+                return $this->deny($decisionId, $chain, $e->reason);
+            }
+        }
 
         // Layer agente: ogni hop della catena deve essere un agente ATTIVO. Fail-closed
         // PRIMA di toccare l'engine: un agente ignoto non produce nemmeno una query.

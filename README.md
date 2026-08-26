@@ -76,6 +76,7 @@ vendors would have to build from scratch:
 | **User-facing delegation timeline** ("what did my agents do?") + one-click revoke | ✅ | admin-only audit | admin-only audit |
 | **Budget-bounded delegation** — scopes bound authority, budgets bound intensity: grant-level €/token/call caps, metered by [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) ≥ 1.6, fail-closed at exchange | ✅ | ❌ | ❌ |
 | **JIT scope elevation, multi-channel** — out-of-band nudge via [laravel-rebel-channels](https://github.com/padosoft/laravel-rebel-channels) ≥ 0.1.3 (Telegram/WhatsApp/SMS/voice), approval = bound in-app re-consent | ✅ | ❌ | CIBA (push/SMS) |
+| **Asymmetric kill switch** — one admin freezes the fleet instantly; restarting needs a quorum of *distinct* admins, with the quorum photographed at freeze time so nobody lowers it afterwards | ✅ | ❌ | ❌ |
 | **Anomaly detection with auto-suspend** on the delegation stream — exchange bursts + scope probing, opt-in kill-switch via [laravel-rebel-ai-guard](https://github.com/padosoft/laravel-rebel-ai-guard) ≥ 0.1.3 | ✅ | ❌ | ❌ |
 | **EU AI Act native** — grants as Art. 14 human-oversight items, agents in the Art. 6 risk register via [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance) ≥ 1.8 | ✅ | ❌ | ❌ |
 | **Security proven by negative tests** — the refusal paths ARE the test suite, shipped | ✅ 57 tests, every deny asserted | ❌ | ❌ |
@@ -192,6 +193,51 @@ domain events (`DelegationGrantCreated/Revoked`, `AgentApproved/Suspended/Retire
 [laravel-ai-act-compliance](https://github.com/padosoft/laravel-ai-act-compliance)'s Art. 14
 oversight. Details: [Budget & elevation guide](https://doc.laravel-iam-agents.padosoft.com/guides/budget-and-elevation).
 
+## The kill switch is asymmetric on purpose (v1.3)
+
+Something is wrong at three in the morning. The question is not *"who else should agree that we
+stop?"* — it is **how fast can this stop**. So **one admin freezes delegation, alone, immediately**:
+
+```http
+POST /api/iam/v1/delegation-freezes
+{ "scope": "global", "reason": "Anomalous tool calls from agt_01J…" }
+```
+
+From that moment no delegated token is issued, **and no delegated decision passes** — the second
+half is what makes it a kill switch rather than a pause on new issuance: delegated tokens live five
+minutes, and "five more minutes of a frozen fleet still acting" is not what anyone means by *stop*.
+A frozen fleet also cannot request a JIT elevation; asking the user to grant *more* during an
+incident is precisely backwards.
+
+**Revoking a grant and suspending an agent are never blocked by a freeze.** If the switch also
+stopped those, it would block the incident response that caused it.
+
+Restarting is the opposite operation — it is exactly when an attacker, or an operator who mostly
+wants the alarm to go away, wants to be the only decision-maker. So that side gets the friction,
+on two independent axes:
+
+```
+freeze  →  1 admin       ·  iam:delegations.manage
+lift    →  N distinct    ·  iam:delegations.unfreeze     (default N = 2)
+```
+
+Three decisions carry the whole design:
+
+- **The quorum is photographed at freeze time**, not re-read at lift time. Otherwise anyone who can
+  edit configuration sets it to `1` and unfreezes alone — and a control the person you are defending
+  against can switch off is not a control.
+- **Whoever froze may approve, like anyone else.** Excluding them adds no security (the attacker who
+  wants to *lift* is not the one who *set* it) and removes a signature from the person actually
+  handling the incident. Two-person control comes from the quorum; what is enforced, with a database
+  unique constraint rather than a code path, is that approvals come from **distinct** identities.
+- **The check is not cached.** A kill switch that takes thirty seconds to kill is not a kill switch.
+
+Scope it to `global`, to one `organization`, or to a single `agent` — in an incident the real
+question is *how much* to switch off. Every freeze, **every** approval (duplicates included) and
+every lift is sealed into the `delegation` audit stream: *"who wanted the agents running again"* is
+a question you answer with the full list, not with whoever signed last.
+Details: [Asymmetric kill switch](https://doc.laravel-iam-agents.padosoft.com/guides/kill-switch).
+
 ## Correlating a delegation to the work it did (v1.2)
 
 The delegation context — *who*, *through which agent*, *under which grant* — is hydrated once at
@@ -237,6 +283,8 @@ Every one of these is a **negative test in the shipped suite** — security prov
 - Budget exhausted per the bound meter → `invalid_grant` (`delegation_budget_exhausted: <reason>`)
 - Scopes outside `requested ∩ grant ∩ agent ceiling` → `invalid_scope`
 - `actor_token` (multi-hop, v2) → clean `invalid_request` per RFC 8693
+- Delegation **frozen** (global / organization / that agent) → `invalid_grant`, and every delegated decision denies
+- The freeze table exists but cannot be read → denied `freeze_state_unavailable` ("I could not check" is not "it is fine")
 - A malformed `act` claim **throws** — it never silently degrades to full-user authority
 
 ## Agent readiness: where this sits
@@ -260,6 +308,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | Gated DCR + auth.md discovery | **Active** (off by default, human approval only) |
 | Revocation push — every `delegation` stream event (grant revoked, exchange refused, lifecycle) is pushed to the server's signed webhook subscriptions the moment it is sealed | **Active** |
 | Budget-bounded delegation (grant-level caps, fail-closed guard port) · JIT scope elevation (bound re-consent) | **Active** (v1.1) |
+| Asymmetric kill switch (1 admin to freeze, m-of-n distinct admins to lift) | **Active** (v1.3) |
 | Multi-hop `act` chains | Emerging (v2) |
 | AP2 mandate bridge (checkout/payment), A2A agent cards | Frontier — after real pilots |
 

@@ -13,6 +13,7 @@ use Laravel\Ai\Events\StartingStep;
 use League\OAuth2\Server\AuthorizationServer;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
 use Padosoft\Iam\Agents\Consent\NullConsentVerifier;
+use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
 use Padosoft\Iam\Agents\Grants\DbDelegationGrantStore;
 use Padosoft\Iam\Agents\OAuth\TokenExchangeGrant;
 use Padosoft\Iam\Agents\Pdp\DelegatedEngine;
@@ -49,12 +50,18 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             ->hasMigrations([
                 'create_iam_agents_table',
                 'create_iam_delegation_grants_table',
+                'create_iam_delegation_freezes_table',
             ]);
     }
 
     public function packageRegistered(): void
     {
         $this->app->singleton(DbAgentRegistry::class);
+
+        // Kill switch: un solo servizio condiviso, perché memorizza per istanza se
+        // la tabella dei freeze esiste (un deploy fra il codice nuovo e `migrate`
+        // non deve negare ogni delega, ma nemmeno pagare uno `hasTable` per check).
+        $this->app->singleton(DelegationFreezeService::class);
         $this->app->bind(AgentRegistry::class, DbAgentRegistry::class);
         $this->app->bind(DelegationGrantStore::class, DbDelegationGrantStore::class);
 
@@ -108,6 +115,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             $this->app->make(AuthorizationEngine::class),
             $this->app->make(AgentRegistry::class),
             $this->app->make(DelegationGrantStore::class),
+            $this->app->make(DelegationFreezeService::class),
         ));
 
         // Il grant RFC 8693 entra nel token endpoint del server SENZA toccare il core:
@@ -121,6 +129,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
                     $this->app->make(DelegationGrantStore::class),
                     $this->app->make(TokenIssuanceContext::class),
                     $this->app->make(Audit\DelegationAudit::class),
+                    $this->app->make(DelegationFreezeService::class),
                     $this->typ(),
                 );
                 $server->enableGrantType($grant, new DateInterval('PT'.$this->delegatedTtl().'S'));
@@ -162,6 +171,10 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         config()->set('iam.capabilities.features.agents', [
             'registration' => config('iam-agents.registration.enabled', false) === true,
             'max_delegation_depth' => is_numeric($depth = config('iam-agents.max_delegation_depth', 1)) ? (int) $depth : 1,
+            // Il pannello deve poter mostrare il quorum PRIMA che qualcuno prema il
+            // pulsante: "fermo tutto adesso, e poi serviranno N firme per ripartire"
+            // è la parte che un admin deve sapere in anticipo, non scoprire dopo.
+            'kill_switch_lift_quorum' => DelegationFreezeService::configuredQuorum(),
         ]);
 
         // Migrazioni del modulo (pattern del server: loadMigrationsFrom, disattivabile).
