@@ -81,6 +81,22 @@ return [
         'notifier' => null,
     ],
 
+    'kill_switch' => [
+        // Quante approvazioni di admin DISTINTI servono per far ripartire la delega
+        // dopo un freeze. Congelare ne richiede sempre UNA sola: in un incidente
+        // l'esitazione costa più di un falso positivo, mentre ripartire è
+        // esattamente il momento in cui serve che più di una persona sia d'accordo.
+        //
+        // Il valore viene FOTOGRAFATO sul freeze nel momento in cui viene creato e
+        // non riletto qui allo sblocco: altrimenti chi può modificare questo file
+        // lo porterebbe a 1 e scongelerebbe da solo.
+        //
+        // 1 è ammesso (team piccoli) e significa "nessun quorum": resta comunque
+        // l'asimmetria di PERMESSO — `iam:delegations.manage` per congelare,
+        // `iam:delegations.unfreeze` per approvare la rimozione.
+        'lift_quorum' => env('IAM_AGENTS_FREEZE_LIFT_QUORUM', 2),
+    ],
+
     'registration' => [
         // Registrazione agentic (DCR RFC 7591 gated + auth.md/ID-JAG). OFF di default.
         // Le registrazioni atterrano SEMPRE in stato `pending`: Active solo con

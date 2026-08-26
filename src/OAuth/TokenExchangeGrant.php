@@ -11,6 +11,8 @@ use League\OAuth2\Server\RequestAccessTokenEvent;
 use League\OAuth2\Server\RequestEvent;
 use League\OAuth2\Server\ResponseTypes\ResponseTypeInterface;
 use Padosoft\Iam\Agents\Audit\DelegationAudit;
+use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
+use Padosoft\Iam\Agents\Freeze\DelegationFrozenException;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
@@ -57,6 +59,7 @@ final class TokenExchangeGrant extends AbstractGrant
         private readonly DelegationGrantStore $grants,
         private readonly TokenIssuanceContext $issuance,
         private readonly DelegationAudit $audit,
+        private readonly DelegationFreezeService $freeze,
         private readonly string $delegatedTyp = 'delegated+jwt',
     ) {}
 
@@ -102,6 +105,16 @@ final class TokenExchangeGrant extends AbstractGrant
         }
         if ($agent->statusEnum() !== AgentStatus::Active) {
             $this->refuse($agent->id, null, 'agent_not_active');
+        }
+
+        // 2-bis) Kill switch: se la delega è congelata (globalmente, per l'org o per
+        //    QUESTO agente), non si emette nulla. Prima del subject_token: un freeze
+        //    non è una questione di quale utente stia chiedendo, e non c'è motivo di
+        //    validare un token per poi rifiutare comunque.
+        try {
+            $this->freeze->assertNotFrozen($agent->id, $agent->organization_id);
+        } catch (DelegationFrozenException $e) {
+            $this->refuse($agent->id, null, $e->auditReason());
         }
 
         // 3) subject_token: firma/iss/exp del NOSTRO issuer; niente act (no chaining MVP);

@@ -48,6 +48,17 @@ Corollari non negoziabili:
    (il ceiling admin non si alza col consenso); `pending` scade da solo; approvare = RI-consenso
    step-up bound agli scope extra (one-shot); negare è one-click; il notifier out-of-band
    (rebel-channels) INFORMA soltanto, best-effort, mai autoritativo.
+11. **Kill switch ASIMMETRICO (v1.3)**: congelare = UN admin (`iam:delegations.manage`), immediato,
+   senza approvazioni; scongelare = quorum di admin **DISTINTI** (unique `(freeze_id, approver)` a
+   livello di schema) con un permesso a sé (`iam:delegations.unfreeze`). Il `required_quorum` è
+   **fotografato sulla riga del freeze** alla creazione e MAI riletto dalla config allo sblocco —
+   altrimenti chi può modificare la config lo abbassa a 1 e scongela da solo. Chi ha congelato può
+   approvare come chiunque altro (escluderlo non aggiunge sicurezza e toglie una firma a chi gestisce
+   l'incidente). Il freeze blocca exchange, decisioni delegate ed elevation; **non blocca MAI la
+   revoca né la sospensione di un agente** (un kill switch che impedisce la risposta all'incidente è
+   peggio di nessun kill switch). Il check NON è cachato: un kill switch che impiega 30s a uccidere
+   non è un kill switch. Stato illeggibile ⇒ deny `freeze_state_unavailable`; tabella non ancora
+   migrata ⇒ non blocca nulla (è "non installato", non "non verificabile").
 
 ## Architettura
 

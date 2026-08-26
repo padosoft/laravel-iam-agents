@@ -9,6 +9,8 @@ use Padosoft\Iam\Agents\Audit\DelegationAudit;
 use Padosoft\Iam\Agents\Consent\ConsentFailedException;
 use Padosoft\Iam\Agents\Consent\ConsentPayload;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
+use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
+use Padosoft\Iam\Agents\Freeze\DelegationFrozenException;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationElevationModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
@@ -41,6 +43,7 @@ final class DelegationElevationService
     public function __construct(
         private readonly ConsentVerifier $consent,
         private readonly DelegationAudit $audit,
+        private readonly ?DelegationFreezeService $freeze = null,
     ) {}
 
     /**
@@ -58,6 +61,18 @@ final class DelegationElevationService
         $agent = Agent::query()->find($grant->agent_id);
         if ($agent === null) {
             throw new ElevationException('Elevation su agente ignoto.');
+        }
+
+        // Kill switch: una flotta congelata non allarga i propri scope. Sarebbe
+        // il contrario esatto di ciò che il freeze significa — e, peggio, la
+        // richiesta arriverebbe al delegante come una notifica out-of-band
+        // durante un incidente, chiedendogli di concedere DI PIÙ.
+        if ($this->freeze !== null) {
+            try {
+                $this->freeze->assertNotFrozen($agent->id, $agent->organization_id);
+            } catch (DelegationFrozenException $e) {
+                throw new ElevationException('Elevation rifiutata: la delega è congelata ('.$e->reason.').');
+            }
         }
 
         $clean = array_values(array_unique(array_filter($scopes, static fn (string $s): bool => $s !== '')));

@@ -91,6 +91,11 @@
           "path": "/guides/budget-and-elevation"
         },
         {
+          "title": "Asymmetric kill switch",
+          "path": "/guides/kill-switch",
+          "icon": "octagon-x"
+        },
+        {
           "title": "Run Correlation",
           "path": "/guides/run-correlation",
           "icon": "link"
@@ -152,7 +157,7 @@
   "footer": {
     "style": "minimal",
     "branding": true,
-    "content": "© Lorenzo Padovani — [Padosoft](https://github.com/padosoft) · [GitHub](https://github.com/padosoft/laravel-iam-agents) · MIT",
+    "content": "\u00a9 Lorenzo Padovani \u2014 [Padosoft](https://github.com/padosoft) \u00b7 [GitHub](https://github.com/padosoft/laravel-iam-agents) \u00b7 MIT",
     "columns": [
       {
         "title": "Project",
@@ -195,7 +200,7 @@
     "search": {
       "enabled": true,
       "semantic": true,
-      "placeholder": "Search the docs…"
+      "placeholder": "Search the docs\u2026"
     },
     "git": {
       "repo": "https://github.com/padosoft/laravel-iam-agents",
