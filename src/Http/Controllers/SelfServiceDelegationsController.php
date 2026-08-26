@@ -16,6 +16,7 @@ use Padosoft\Iam\Agents\Elevation\ElevationException;
 use Padosoft\Iam\Agents\Events\DelegationGrantCreated;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
+use Padosoft\Iam\Agents\Models\DelegationReceiptModel;
 use Padosoft\Iam\Agents\Support\DelegationSessionResolver;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
 use Padosoft\Iam\Contracts\Delegation\DelegationBudget;
@@ -36,6 +37,41 @@ final class SelfServiceDelegationsController
         private readonly DelegationGrantStore $store,
         private readonly DelegationAudit $audit,
     ) {}
+
+    /**
+     * "Cosa hanno fatto i miei agenti": la timeline delle ricevute firmate.
+     *
+     * Ogni riga porta il proprio JWS, così l'utente può esportarla e farla
+     * verificare da chiunque col JWKS pubblico — senza chiedere niente a noi. È
+     * la differenza fra un audit (che è nostro, e serve agli admin) e una
+     * ricevuta (che è dell'utente).
+     */
+    public function receipts(Request $request): JsonResponse
+    {
+        $user = $this->subject($request);
+
+        $rows = DelegationReceiptModel::query()
+            ->where('subject_type', $user->type)
+            ->where('subject_id', $user->id)
+            ->orderByDesc('issued_at')
+            ->limit(100)
+            ->get();
+
+        return new JsonResponse([
+            'data' => $rows->map(static fn (DelegationReceiptModel $r): array => [
+                'id' => $r->id,
+                'agent' => 'agent:'.$r->agent_id,
+                'grant_id' => $r->grant_id,
+                'action' => $r->action,
+                'resource' => $r->resource,
+                'outcome' => $r->outcome,
+                'decision_id' => $r->decision_id,
+                'issued_at' => $r->issued_at->toDateTimeImmutable()->format(\DateTimeInterface::ATOM),
+                'payload_digest' => $r->payload_digest,
+                'receipt' => $r->jws,
+            ])->all(),
+        ]);
+    }
 
     public function index(Request $request): JsonResponse
     {

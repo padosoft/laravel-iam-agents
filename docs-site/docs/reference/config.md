@@ -65,6 +65,14 @@ and unfreeze alone.
 applies. Do not set a quorum larger than the number of people who actually hold
 `iam:delegations.unfreeze`, or the fleet cannot be restarted.
 
+## Action receipts (v1.4)
+
+| Key | Default | Notes |
+| --- | --- | --- |
+| `receipts.enabled` | `true` | On by default: minting still requires a valid delegated token and a live grant, so the surface does not exist until a delegation does. |
+| `receipts.rate_limit` | `120,1` | Throttle on the minting endpoint. Signing is cheap; an agent in a loop must not be able to fill the evidence table. |
+| `receipts.ttl_seconds` | `315360000` (10y) | The JWS `exp`. Evidence does not expire, but the `TokenSigner` contract requires an expiry, so it is set far out and stays a formality. What actually bounds external verification is **key rotation** — archive your historical JWKS if you need decade-scale third-party verification; the digest sealed in the audit chain stays probative regardless. |
+
 ## Registration
 
 | Key | Default | Notes |

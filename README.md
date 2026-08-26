@@ -73,7 +73,7 @@ vendors would have to build from scratch:
 | **PSD2-grade consent** (step-up AAL2, parameters cryptographically bound) | ✅ | ❌ consent screen | ❌ consent screen |
 | **Dual decision IDs** — replay *why the user side allowed* and *why the agent side allowed*, separately | ✅ | ❌ | ❌ |
 | **Tamper-evident audit** (hash-chained `stream=delegation`, every refused exchange included) | ✅ | plain logs | plain logs |
-| **User-facing delegation timeline** ("what did my agents do?") + one-click revoke | ✅ | admin-only audit | admin-only audit |
+| **User-facing delegation timeline** ("what did my agents do?") + one-click revoke, with a **signed JWS receipt** per action the user can export and have verified by anyone | ✅ | admin-only audit | admin-only audit |
 | **Budget-bounded delegation** — scopes bound authority, budgets bound intensity: grant-level €/token/call caps, metered by [laravel-ai-finops](https://github.com/padosoft/laravel-ai-finops) ≥ 1.6, fail-closed at exchange | ✅ | ❌ | ❌ |
 | **JIT scope elevation, multi-channel** — out-of-band nudge via [laravel-rebel-channels](https://github.com/padosoft/laravel-rebel-channels) ≥ 0.1.3 (Telegram/WhatsApp/SMS/voice), approval = bound in-app re-consent | ✅ | ❌ | CIBA (push/SMS) |
 | **Asymmetric kill switch** — one admin freezes the fleet instantly; restarting needs a quorum of *distinct* admins, with the quorum photographed at freeze time so nobody lowers it afterwards | ✅ | ❌ | ❌ |
@@ -238,6 +238,45 @@ every lift is sealed into the `delegation` audit stream: *"who wanted the agents
 a question you answer with the full list, not with whoever signed last.
 Details: [Asymmetric kill switch](https://doc.laravel-iam-agents.padosoft.com/guides/kill-switch).
 
+## A receipt the user holds (v1.4)
+
+An audit log is **ours**. It answers *what happened on this platform* — hash-chained,
+tamper-evident, complete — and it answers it for admins. It does not answer the user's
+question: *what did my agents do, and can I show that to someone who does not trust your
+database?*
+
+A **receipt** does. It is a compact JWS, signed with the same ES256 key as the access tokens
+and verifiable against the same public JWKS:
+
+```http
+POST /iam/agent/receipts
+Authorization: Bearer <delegated access token>
+{ "action": "orders.create", "resource": "order:9001", "outcome": "ok", "idempotency_key": "req-7731" }
+```
+
+> agent `agent:01J8…`, acting for `user:42` under grant `dgr_01J9…`, asserts it performed
+> `orders.create` on `order:9001`, outcome `ok`, under PDP decision `dec_01J9…`.
+
+**What the signature attests, exactly.** The issuer vouches for the *identity binding* — that
+the actor really was that agent, acting for that user, under that grant, and that the grant was
+**live at that moment**. It does **not** vouch for the truth of the action; that is the actor's
+assertion. Without stating this, someone will read a receipt as proof the order shipped. What it
+proves is that *that agent said so*, in a document it cannot repudiate — evidence **against** an
+agent that lies, not a way to frame one.
+
+**Only the holder of a delegated token can mint one**, and `sub` / `act` / `pds_dgr` are copied
+from the *verified token*, never from the body. So no agent signs for another, and none signs for
+a user who never delegated to it. A plain user token is refused (it would make a user sign as if
+they were an agent), a revoked grant is refused (otherwise an agent just cut off could backdate
+its own history, exactly when it most wants to), and a frozen fleet is refused — signing is an
+action.
+
+The user reads them at `GET /iam/me/delegations/receipts`, each row carrying its own JWS to
+export. Stored as two halves on purpose: the **JWS** travels, and a **digest of its canonical
+claims** is sealed into the audit chain, so the receipt stays probative after the signing key
+leaves the JWKS through rotation.
+Details: [Signed action receipts](https://doc.laravel-iam-agents.padosoft.com/guides/action-receipts).
+
 ## Correlating a delegation to the work it did (v1.2)
 
 The delegation context — *who*, *through which agent*, *under which grant* — is hydrated once at
@@ -284,6 +323,7 @@ Every one of these is a **negative test in the shipped suite** — security prov
 - Scopes outside `requested ∩ grant ∩ agent ceiling` → `invalid_scope`
 - `actor_token` (multi-hop, v2) → clean `invalid_request` per RFC 8693
 - Delegation **frozen** (global / organization / that agent) → `invalid_grant`, and every delegated decision denies
+- Minting an action receipt from a **plain user token**, a revoked grant, a suspended agent, or while frozen → refused (generic `receipt_not_issued`; the reason stays in the audit)
 - The freeze table exists but cannot be read → denied `freeze_state_unavailable` ("I could not check" is not "it is fine")
 - A malformed `act` claim **throws** — it never silently degrades to full-user authority
 
@@ -309,6 +349,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | Revocation push — every `delegation` stream event (grant revoked, exchange refused, lifecycle) is pushed to the server's signed webhook subscriptions the moment it is sealed | **Active** |
 | Budget-bounded delegation (grant-level caps, fail-closed guard port) · JIT scope elevation (bound re-consent) | **Active** (v1.1) |
 | Asymmetric kill switch (1 admin to freeze, m-of-n distinct admins to lift) | **Active** (v1.3) |
+| Signed action receipts (JWS the user holds) + "what did my agents do" timeline | **Active** (v1.4) |
 | Multi-hop `act` chains | Emerging (v2) |
 | AP2 mandate bridge (checkout/payment), A2A agent cards | Frontier — after real pilots |
 

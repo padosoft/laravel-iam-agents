@@ -59,6 +59,15 @@ Corollari non negoziabili:
    peggio di nessun kill switch). Il check NON è cachato: un kill switch che impiega 30s a uccidere
    non è un kill switch. Stato illeggibile ⇒ deny `freeze_state_unavailable`; tabella non ancora
    migrata ⇒ non blocca nulla (è "non installato", non "non verificabile").
+12. **Ricevute d'azione (v1.4)**: solo chi ha un TOKEN DELEGATO valido conia, e `sub`/`act`/
+   `pds_dgr` si copiano DAL TOKEN VERIFICATO, mai dal body. Un token utente pieno (senza `act`)
+   NON conia; grant revocata/scaduta, agente non `active` e delega congelata NON coniano (una
+   storia non si retrodata proprio quando conviene). La firma attesta il LEGAME DI IDENTITÀ, non
+   la verità dell'azione — dirlo è parte del contratto, non una nota. `aud` dedicata
+   (`urn:padosoft:iam:delegation-receipt`) + `pds_att: actor`: una ricevuta non deve poter passare
+   per access token. Nessun parametro d'azione nei claim (la PII sta negli argomenti: restano
+   nell'audit, dove il crypto-shredding esiste). Rifiuto al client SEMPRE generico, motivo
+   nell'audit. Idempotency key unica per grant: le reti mobili ritentano.
 
 ## Architettura
 

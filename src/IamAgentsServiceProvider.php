@@ -17,6 +17,7 @@ use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
 use Padosoft\Iam\Agents\Grants\DbDelegationGrantStore;
 use Padosoft\Iam\Agents\OAuth\TokenExchangeGrant;
 use Padosoft\Iam\Agents\Pdp\DelegatedEngine;
+use Padosoft\Iam\Agents\Receipts\DelegationReceiptService;
 use Padosoft\Iam\Agents\Registry\AgentLifecycleService;
 use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Agents\Support\DelegationSessionResolver;
@@ -51,6 +52,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
                 'create_iam_agents_table',
                 'create_iam_delegation_grants_table',
                 'create_iam_delegation_freezes_table',
+                'create_iam_delegation_receipts_table',
             ]);
     }
 
@@ -62,6 +64,8 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         // la tabella dei freeze esiste (un deploy fra il codice nuovo e `migrate`
         // non deve negare ogni delega, ma nemmeno pagare uno `hasTable` per check).
         $this->app->singleton(DelegationFreezeService::class);
+
+        $this->app->singleton(DelegationReceiptService::class);
         $this->app->bind(AgentRegistry::class, DbAgentRegistry::class);
         $this->app->bind(DelegationGrantStore::class, DbDelegationGrantStore::class);
 
@@ -175,6 +179,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             // pulsante: "fermo tutto adesso, e poi serviranno N firme per ripartire"
             // è la parte che un admin deve sapere in anticipo, non scoprire dopo.
             'kill_switch_lift_quorum' => DelegationFreezeService::configuredQuorum(),
+            'action_receipts' => config('iam-agents.receipts.enabled', true) === true,
         ]);
 
         // Migrazioni del modulo (pattern del server: loadMigrationsFrom, disattivabile).
@@ -205,6 +210,13 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             Route::prefix(is_string($prefix) ? $prefix : 'api/iam/v1')
                 ->middleware(['iam.admin_auth', 'iam.idempotency', 'throttle:120,1'])
                 ->group(__DIR__.'/../routes/admin.php');
+        }
+
+        // Ricevute d'azione: superficie dell'AGENTE, autenticata dal token
+        // delegato stesso. Nessun guard applicativo — il token È la credenziale,
+        // ed è verificato nel servizio (firma, act, pds_dgr, grant viva).
+        if (config('iam-agents.receipts.enabled', true) === true) {
+            Route::group([], __DIR__.'/../routes/agent.php');
         }
 
         // Registrazione agentic (DCR gated + discovery auth.md). OFF di default;

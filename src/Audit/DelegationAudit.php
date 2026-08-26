@@ -9,6 +9,7 @@ use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationElevationModel;
 use Padosoft\Iam\Agents\Models\DelegationFreezeModel;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
+use Padosoft\Iam\Agents\Models\DelegationReceiptModel;
 use Padosoft\Iam\Agents\Support\RunCorrelation;
 use Padosoft\Iam\Contracts\Support\SubjectRef;
 use Padosoft\Iam\Domain\Audit\Pii\AuditRecorder;
@@ -140,6 +141,52 @@ final class DelegationAudit
                 'user' => $grant->user_type.':'.$grant->user_id,
                 'revoked_by' => (string) $revokedBy,
             ],
+        ]);
+    }
+
+    /**
+     * Ricevuta d'azione emessa.
+     *
+     * Il digest, non il JWS: la catena serve a rendere la ricevuta ancora
+     * probante quando la chiave di firma sarà uscita dal JWKS per rotazione, e
+     * per quello basta l'impronta. Copiare il JWS intero raddoppierebbe il dato
+     * senza aggiungere una garanzia.
+     */
+    public function receiptIssued(DelegationReceiptModel $receipt): void
+    {
+        $this->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.receipt.issued',
+            'actor_agent_id' => $receipt->agent_id,
+            'target_type' => 'delegation_receipt',
+            'target_id' => $receipt->id,
+            'risk_level' => 'low',
+            'metadata_json' => array_filter([
+                'receipt_id' => $receipt->id,
+                'grant_id' => $receipt->grant_id,
+                'user' => $receipt->subject_type.':'.$receipt->subject_id,
+                'action' => $receipt->action,
+                'resource' => $receipt->resource,
+                'outcome' => $receipt->outcome,
+                'decision_id' => $receipt->decision_id,
+                'payload_digest' => $receipt->payload_digest,
+            ], static fn ($v): bool => $v !== null),
+        ]);
+    }
+
+    /** Tentativo di emissione RIFIUTATO: i rifiuti sono il segnale, non il rumore. */
+    public function receiptRefused(string $reason, ?string $grantId = null): void
+    {
+        $this->record([
+            'stream' => self::STREAM,
+            'event_type' => 'iam.delegation.receipt.refused',
+            'target_type' => $grantId !== null ? 'delegation_grant' : null,
+            'target_id' => $grantId,
+            'risk_level' => 'medium',
+            'metadata_json' => array_filter([
+                'grant_id' => $grantId,
+                'refusal_reason' => $reason,
+            ], static fn ($v): bool => $v !== null),
         ]);
     }
 

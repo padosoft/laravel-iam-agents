@@ -96,6 +96,11 @@
           "icon": "octagon-x"
         },
         {
+          "title": "Signed action receipts",
+          "path": "/guides/action-receipts",
+          "icon": "receipt"
+        },
+        {
           "title": "Run Correlation",
           "path": "/guides/run-correlation",
           "icon": "link"
