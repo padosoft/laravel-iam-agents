@@ -81,7 +81,11 @@ final readonly class ConsentPreview
     }
 
     /**
-     * Risorse raggiungibili, come mappa id => true per l'intersezione.
+     * Risorse raggiungibili, come mappa "type:id" => true per l'intersezione.
+     *
+     * Il reverse-index del PDP produce `array{type: string, id: string}`: la chiave
+     * composta e' quella che identifica davvero una risorsa, perche' due tipi diversi
+     * possono condividere lo stesso id e non sono la stessa cosa.
      *
      * @return array<string, true>
      */
@@ -89,9 +93,10 @@ final readonly class ConsentPreview
     {
         $map = [];
         foreach ($this->engine->listResources($subject, $relation) as $resource) {
-            $id = is_object($resource) ? (string) $resource : (is_scalar($resource) ? (string) $resource : null);
-            if ($id !== null && $id !== '') {
-                $map[$id] = true;
+            $type = $resource['type'] ?? '';
+            $id = $resource['id'] ?? '';
+            if ($type !== '' && $id !== '') {
+                $map[$type.':'.$id] = true;
             }
         }
 

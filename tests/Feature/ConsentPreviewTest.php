@@ -37,7 +37,12 @@ function previewEngine(array $reach): AuthorizationEngine
 
         public function listResources(SubjectRef $subject, string $relation): iterable
         {
-            return $this->reach[((string) $subject).'|'.$relation] ?? [];
+            // Shape REALE del contratto: array{type,id}, non stringhe. Il fake deve
+            // imitare quella, altrimenti il test verde non dice nulla sul motore vero.
+            foreach ($this->reach[((string) $subject).'|'.$relation] ?? [] as $ref) {
+                [$type, $id] = explode(':', $ref, 2);
+                yield ['type' => $type, 'id' => $id];
+            }
         }
     };
 }
