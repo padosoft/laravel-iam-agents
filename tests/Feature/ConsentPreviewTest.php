@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Request;
-use Padosoft\Iam\Agents\Http\Controllers\SelfServiceDelegationsController;
 use Padosoft\Iam\Agents\Consent\ConsentPreview;
+use Padosoft\Iam\Agents\Http\Controllers\SelfServiceDelegationsController;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Contracts\Authorization\AuthorizationEngine;
 use Padosoft\Iam\Contracts\Delegation\AgentRegistry;

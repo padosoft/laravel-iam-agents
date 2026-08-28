@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
+use League\OAuth2\Server\AuthorizationServer;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
@@ -243,7 +244,7 @@ function seedSecondAgent(array $maxScopes = ['orders:read']): Agent
 function allowDepth(int $depth): void
 {
     config()->set('iam-agents.max_delegation_depth', $depth);
-    app()->forgetInstance(League\OAuth2\Server\AuthorizationServer::class);
+    app()->forgetInstance(AuthorizationServer::class);
 }
 
 function downstreamExchange(string $subjectToken, array $overrides = []): TestResponse

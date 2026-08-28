@@ -70,7 +70,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             $limit = config('iam-agents.consent.preview_limit', 25);
 
             return new Consent\ConsentPreview(
-                $this->app->make(\Padosoft\Iam\Contracts\Authorization\AuthorizationEngine::class),
+                $this->app->make(AuthorizationEngine::class),
                 $this->app->make(AgentRegistry::class),
                 is_numeric($limit) ? max(1, (int) $limit) : 25,
             );
