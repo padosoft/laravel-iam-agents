@@ -135,6 +135,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
                     $this->app->make(Audit\DelegationAudit::class),
                     $this->app->make(DelegationFreezeService::class),
                     $this->typ(),
+                    $this->maxDelegationDepth(),
                 );
                 $server->enableGrantType($grant, new DateInterval('PT'.$this->delegatedTtl().'S'));
 
@@ -166,6 +167,20 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         $events->listen(AgentFailed::class, [RunCorrelation::class, 'handleRunFinished']);
     }
 
+    /**
+     * Profondita' massima della catena di delega (numero di hop `act`).
+     *
+     * 1 = single-hop: un subject_token gia' delegato viene rifiutato. >=2 abilita il
+     * chaining. Il floor a 1 e' deliberato: una config a 0 o negativa disabiliterebbe
+     * di fatto la delega in modo silenzioso, che e' peggio di un default sbagliato.
+     */
+    private function maxDelegationDepth(): int
+    {
+        $depth = config('iam-agents.max_delegation_depth', 1);
+
+        return is_numeric($depth) ? max(1, (int) $depth) : 1;
+    }
+
     public function packageBooted(): void
     {
         // P4: il modulo si dichiara al pannello via GET /capabilities (contratto del server:
@@ -174,7 +189,7 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         config()->set('iam.capabilities.modules.agents', $this->enabled());
         config()->set('iam.capabilities.features.agents', [
             'registration' => config('iam-agents.registration.enabled', false) === true,
-            'max_delegation_depth' => is_numeric($depth = config('iam-agents.max_delegation_depth', 1)) ? (int) $depth : 1,
+            'max_delegation_depth' => $this->maxDelegationDepth(),
             // Il pannello deve poter mostrare il quorum PRIMA che qualcuno prema il
             // pulsante: "fermo tutto adesso, e poi serviranno N firme per ripartire"
             // è la parte che un admin deve sapere in anticipo, non scoprire dopo.

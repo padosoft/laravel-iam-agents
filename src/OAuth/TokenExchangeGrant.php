@@ -17,7 +17,9 @@ use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Registry\DbAgentRegistry;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
 use Padosoft\Iam\Contracts\Delegation\ActClaim;
+use Padosoft\Iam\Contracts\Delegation\ActorRef;
 use Padosoft\Iam\Contracts\Delegation\AgentStatus;
+use Padosoft\Iam\Contracts\Delegation\DelegationChain;
 use Padosoft\Iam\Contracts\Delegation\DelegationBudgetGuard;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrant;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStore;
@@ -61,6 +63,7 @@ final class TokenExchangeGrant extends AbstractGrant
         private readonly DelegationAudit $audit,
         private readonly DelegationFreezeService $freeze,
         private readonly string $delegatedTyp = 'delegated+jwt',
+        private readonly int $maxDelegationDepth = 1,
     ) {}
 
     public function getIdentifier(): string
@@ -82,8 +85,13 @@ final class TokenExchangeGrant extends AbstractGrant
         }
 
         // Conformance RFC 8693 a livello wire: parametri riconosciuti, rifiuti puliti.
+        // `actor_token` non e' accettato NEMMENO con il multi-hop attivo: la parte
+        // che agisce e' gia' identificata dalla client authentication (private_key_jwt),
+        // e RFC 8693 §2.1 permette di ometterlo proprio in questo caso. Accettarlo
+        // significherebbe avere DUE fonti per l'identita' dell'attore, di cui una non
+        // autenticata — cioe' un modo per dichiararsi qualcun altro.
         if ($this->getRequestParameter('actor_token', $request) !== null) {
-            throw OAuthServerException::invalidRequest('actor_token', 'Delega multi-hop non abilitata (max_delegation_depth=1).');
+            throw OAuthServerException::invalidRequest('actor_token', 'La parte che agisce e\' identificata dalla client authentication; actor_token non e\' accettato.');
         }
         $requestedType = $this->getRequestParameter('requested_token_type', $request) ?? ActClaim::TOKEN_TYPE_ACCESS;
         if ($requestedType !== ActClaim::TOKEN_TYPE_ACCESS) {
@@ -124,8 +132,31 @@ final class TokenExchangeGrant extends AbstractGrant
         } catch (\Throwable) {
             $this->refuse($agent->id, null, 'subject_token_invalid');
         }
-        if (array_key_exists(ActClaim::ACT, $claims)) {
+        // Chaining (multi-hop): un subject_token che porta gia' `act` NON e' un errore,
+        // e' l'hop successivo. L'agente autenticato si aggiunge in coda alla catena.
+        // L'autorita' puo' solo RESTRINGERSI (l'intersezione al PDP include ogni hop) e
+        // la grant radice utente→primo-agente resta il gate: revocarla uccide la catena
+        // intera, non solo l'ultimo anello.
+        $inboundChain = DelegationChain::fromTokenClaims($claims);
+        if ($inboundChain !== null && $this->maxDelegationDepth < 2) {
             $this->refuse($agent->id, null, 'subject_token_already_delegated');
+        }
+        // L'attore CORRENTE sta in testa (`actors[0]`), come vuole il claim annidato:
+        // `{"sub":"agent:B","act":{"sub":"agent:A"}}` ha B — chi sta chiamando — piu'
+        // esterno. Quindi l'agente autenticato si mette DAVANTI alla catena in arrivo,
+        // non in coda.
+        $chain = new DelegationChain(
+            ActorRef::fromAgentId($agent->id),
+            ...($inboundChain?->actors ?? []),
+        );
+        if ($chain->depth() > $this->maxDelegationDepth) {
+            $this->refuse($agent->id, null, 'max_delegation_depth_exceeded');
+        }
+        // Un agente non puo' comparire due volte: un ciclo A→B→A non aggiunge
+        // accountability e maschera un loop di deleghe come una catena legittima.
+        $seen = array_map(strval(...), $chain->actors);
+        if (count($seen) !== count(array_unique($seen))) {
+            $this->refuse($agent->id, null, 'delegation_chain_cycle');
         }
         $sub = $claims['sub'] ?? null;
         if (!is_string($sub) || $sub === '') {
@@ -143,7 +174,13 @@ final class TokenExchangeGrant extends AbstractGrant
 
         // 4) La grant attiva utente→agente (consenso non revocato e non scaduto).
         $userRef = new SubjectRef('user', $sub);
-        $grant = $this->grants->findActive($userRef, $agent->subject());
+        // La radice dell'autorita' e' il consenso che l'utente ha dato all'agente piu'
+        // INTERNO della catena (`actors` ultimo elemento: il primo ad aver ricevuto la
+        // delega). Gli hop successivi non hanno una grant propria e non ne servono,
+        // perche' l'intersezione li puo' solo restringere — ma la radice deve reggere:
+        // revocare quella grant uccide la catena intera, non solo l'ultimo anello.
+        $rootActor = $chain->actors[array_key_last($chain->actors)];
+        $grant = $this->grants->findActive($userRef, $rootActor->subject);
         if ($grant === null) {
             $this->refuse($agent->id, $sub, 'no_active_delegation_grant');
         }
@@ -168,7 +205,7 @@ final class TokenExchangeGrant extends AbstractGrant
 
         // 5) Intersezione degli scope: richiesti ∩ grant ∩ max_scopes (il layer UTENTE
         //    resta al PDP per-request: il token è un upper bound, il PDP la verità).
-        $effective = $this->effectiveScopes($this->getRequestParameter('scope', $request), $grant, $agent);
+        $effective = $this->effectiveScopes($this->getRequestParameter('scope', $request), $grant, $chain);
         if ($effective === []) {
             $this->audit->exchange($agent->id, $sub, false, [], $grant->id, 'empty_scope_intersection');
 
@@ -181,7 +218,11 @@ final class TokenExchangeGrant extends AbstractGrant
         );
 
         // 6) Deposita act/pds_dgr/audience/typ nel canale di emissione (P1) e emetti.
-        $this->issuance->setActor(['sub' => (string) $agent->subject()], $grant->id);
+        $this->issuance->setActor($chain->toActClaim(), $grant->id);
+        // La sessione dell'umano viaggia con il token delegato: ogni hop successivo
+        // deve poter ri-verificare che sia ancora viva. Senza, la catena perderebbe
+        // il gancio di revoca esattamente dove si allunga.
+        $this->issuance->setSessionId($sid);
         $this->issuance->setTyp($this->delegatedTyp);
         $audience = $this->requestedAudience($request);
         if ($audience !== []) {
@@ -208,15 +249,26 @@ final class TokenExchangeGrant extends AbstractGrant
      *
      * @return list<string>
      */
-    private function effectiveScopes(?string $requestedParam, DelegationGrant $grant, Agent $agent): array
+    private function effectiveScopes(?string $requestedParam, DelegationGrant $grant, DelegationChain $chain): array
     {
-        $maxScopes = array_values(array_filter($agent->max_scopes, 'is_string'));
-
         $requested = $requestedParam === null || trim($requestedParam) === ''
             ? $grant->scopes
             : array_values(array_filter(explode(self::SCOPE_DELIMITER_STRING, trim($requestedParam)), static fn (string $s): bool => $s !== ''));
 
-        return array_values(array_intersect($requested, $grant->scopes, $maxScopes));
+        $effective = array_intersect($requested, $grant->scopes);
+
+        // I max_scopes di OGNI hop, non solo dell'ultimo: un agente non puo' ottenere
+        // per delega uno scope che il suo tetto non gli concede, e non puo' aggirarlo
+        // facendoselo passare da un agente a valle. Ogni anello stringe.
+        foreach ($chain->actors as $actor) {
+            $hop = $this->agents->find($actor->subject);
+            if ($hop === null || $hop->status !== AgentStatus::Active) {
+                return [];
+            }
+            $effective = array_intersect($effective, array_values(array_filter($hop->maxScopes, 'is_string')));
+        }
+
+        return array_values($effective);
     }
 
     /**

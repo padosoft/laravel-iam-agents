@@ -39,8 +39,17 @@ return [
         'max_ttl_days' => env('IAM_AGENTS_GRANT_MAX_TTL_DAYS', 30),
     ],
 
-    // Profondità massima della catena di delega. 1 = niente multi-hop (MVP);
-    // `actor_token` viene rifiutato con invalid_request pulito (conformance wire RFC 8693).
+    // Profondità massima della catena di delega, cioè quanti hop `act` può portare un
+    // token. 1 = single-hop: un subject_token che porta già `act` viene rifiutato.
+    // >= 2 abilita il chaining A→B: l'agente autenticato si aggiunge in coda e
+    // l'autorità può solo restringersi (il PDP interseca OGNI hop, mai l'unione).
+    //
+    // Resta 1 di default: il multi-hop è corretto per costruzione ma allarga la
+    // superficie di accountability — chi ha autorizzato B non è l'utente, è A — e
+    // quella è una scelta che un'installazione deve fare consapevolmente.
+    //
+    // `actor_token` è rifiutato in ogni caso: la parte che agisce è già identificata
+    // dalla client authentication (RFC 8693 §2.1 permette di ometterlo proprio così).
     'max_delegation_depth' => 1,
 
     'consent' => [
