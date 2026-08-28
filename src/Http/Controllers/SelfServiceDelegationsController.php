@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Padosoft\Iam\Agents\Audit\DelegationAudit;
 use Padosoft\Iam\Agents\Consent\ConsentFailedException;
 use Padosoft\Iam\Agents\Consent\ConsentPayload;
+use Padosoft\Iam\Agents\Consent\ConsentPreview;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
 use Padosoft\Iam\Agents\Elevation\DelegationElevationService;
 use Padosoft\Iam\Agents\Elevation\ElevationException;
@@ -117,6 +118,39 @@ final class SelfServiceDelegationsController
         }
 
         return new JsonResponse(['data' => $challenge]);
+    }
+
+    /**
+     * Passo 0 (opzionale, prima della challenge): che cosa sto concedendo DAVVERO.
+     *
+     * Una schermata che dice "orders:read" chiede di approvare un nome. Questa
+     * ritorna le RISORSE concrete che l'agente potrebbe toccare per conto di chi
+     * sta guardando — l'intersezione fra ciò che raggiunge l'utente e ciò che
+     * raggiunge l'agente, cioè l'autorita' effettiva della delega.
+     *
+     * Non e' un'autorizzazione: e' una fotografia scattata adesso, e la verita'
+     * resta il PDP a ogni richiesta. Il troncamento e' dichiarato (`total`,
+     * `truncated`) proprio perche' un preview che sottostima il raggio farebbe
+     * sembrare piccola una delega grande.
+     */
+    public function consentPreview(Request $request, ConsentPreview $preview): JsonResponse
+    {
+        $agentId = $request->string('agent_id')->toString();
+        if ($agentId === '') {
+            return new JsonResponse(['error' => 'invalid_payload', 'message' => '`agent_id` mancante.'], 422);
+        }
+
+        $relations = $request->input('relations');
+        $relations = is_array($relations) ? array_values(array_filter($relations, 'is_string')) : [];
+        if ($relations === []) {
+            return new JsonResponse(['error' => 'invalid_payload', 'message' => '`relations` non puo\' essere vuoto.'], 422);
+        }
+
+        return new JsonResponse(['data' => $preview->forGrant(
+            $this->subject($request),
+            new SubjectRef('agent', $agentId),
+            $relations,
+        )]);
     }
 
     /**

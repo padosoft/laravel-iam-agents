@@ -66,6 +66,15 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
         $this->app->singleton(DelegationFreezeService::class);
 
         $this->app->singleton(DelegationReceiptService::class);
+        $this->app->bind(Consent\ConsentPreview::class, function (): Consent\ConsentPreview {
+            $limit = config('iam-agents.consent.preview_limit', 25);
+
+            return new Consent\ConsentPreview(
+                $this->app->make(\Padosoft\Iam\Contracts\Authorization\AuthorizationEngine::class),
+                $this->app->make(AgentRegistry::class),
+                is_numeric($limit) ? max(1, (int) $limit) : 25,
+            );
+        });
         $this->app->bind(AgentRegistry::class, DbAgentRegistry::class);
         $this->app->bind(DelegationGrantStore::class, DbDelegationGrantStore::class);
 

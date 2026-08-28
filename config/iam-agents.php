@@ -53,6 +53,11 @@ return [
     'max_delegation_depth' => 1,
 
     'consent' => [
+        // Quante risorse concrete mostrare per relazione nel consent preview.
+        // Oltre, la risposta dichiara `truncated` + `total`: un preview che
+        // sottostima il raggio farebbe sembrare piccola una delega grande.
+        'preview_limit' => 25,
+
         // Purpose step-up del consenso. Kebab-case OBBLIGATORIO: i punti sono separatori
         // di path config in rebel-step-up e il validator CI salta le chiavi annidate.
         'purpose' => 'iam-delegation-grant',
