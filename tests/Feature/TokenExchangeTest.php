@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Testing\TestResponse;
+use League\OAuth2\Server\AuthorizationServer;
 use Padosoft\Iam\Agents\Models\Agent;
 use Padosoft\Iam\Agents\Models\DelegationGrantModel;
 use Padosoft\Iam\Contracts\Crypto\TokenSigner;
@@ -169,7 +170,7 @@ it('subject token senza sessione (es. m2m) ⇒ negato: la delega richiede un uma
     exchangeRequest($noSession)->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
 });
 
-it('un token GIÀ delegato non è ri-scambiabile (niente chaining in MVP)', function () {
+it('con depth=1 (default) un token GIÀ delegato non è ri-scambiabile', function () {
     $world = seedExchangeWorld();
 
     $delegated = exchangeRequest($world['subjectToken'])->json('access_token');
@@ -207,4 +208,135 @@ it('il token delegato è introspettabile e porta act (verità server-side per le
 
     expect($intro['active'])->toBeTrue()
         ->and($intro['sub'] ?? null)->toBe($world['userId']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Multi-hop: chaining A→B quando max_delegation_depth lo consente
+|--------------------------------------------------------------------------
+*/
+
+/** Secondo agente, con client proprio: e' lui che si presenta per l'hop successivo. */
+function seedSecondAgent(array $maxScopes = ['orders:read']): Agent
+{
+    $client = OauthClient::query()->create([
+        'client_id' => 'cli_agent_downstream',
+        'name' => 'Downstream Agent',
+        'redirect_uris' => [],
+        'grants' => [ActClaim::GRANT_TYPE_TOKEN_EXCHANGE],
+        'scopes' => ['orders:read', 'orders:write'],
+        'is_confidential' => true,
+    ]);
+    $client->secret = Hash::make('downstream-s3cret');
+    $client->save();
+
+    return Agent::query()->create([
+        'id' => Agent::newId(),
+        'name' => 'Downstream Agent',
+        'operator' => 'anthropic',
+        'client_id' => 'cli_agent_downstream',
+        'max_scopes' => $maxScopes,
+        'status' => AgentStatus::Active->value,
+    ]);
+}
+
+/** Abilita il multi-hop: la grant viene costruita quando l'AuthorizationServer si risolve. */
+function allowDepth(int $depth): void
+{
+    config()->set('iam-agents.max_delegation_depth', $depth);
+    app()->forgetInstance(AuthorizationServer::class);
+}
+
+function downstreamExchange(string $subjectToken, array $overrides = []): TestResponse
+{
+    return exchangeRequest($subjectToken, array_merge([
+        'client_id' => 'cli_agent_downstream',
+        'client_secret' => 'downstream-s3cret',
+    ], $overrides));
+}
+
+it('con depth=2 un token delegato e\' ri-scambiabile e l\'act diventa annidato', function () {
+    $world = seedExchangeWorld();
+    $downstream = seedSecondAgent();
+    allowDepth(2);
+
+    $firstHop = exchangeRequest($world['subjectToken'])->assertOk()->json('access_token');
+    $secondHop = downstreamExchange($firstHop)->assertOk()->json('access_token');
+
+    $claims = delegatedClaims($secondHop);
+
+    // `sub` resta l'UTENTE: la delega non cambia mai per conto di chi si agisce.
+    expect($claims['sub'])->toBe($world['userId'])
+        // Attore corrente (piu' esterno) = chi ha appena chiamato; dentro, chi l'ha delegato.
+        ->and($claims[ActClaim::ACT]['sub'])->toBe('agent:'.$downstream->id)
+        ->and($claims[ActClaim::ACT][ActClaim::ACT]['sub'])->toBe('agent:'.$world['agent']->id)
+        // La grant radice resta quella dell'utente verso il PRIMO agente.
+        ->and($claims['pds_dgr'])->toBe($world['grant']->id);
+});
+
+it('la grant RADICE governa tutta la catena: revocarla uccide anche gli hop a valle', function () {
+    $world = seedExchangeWorld();
+    seedSecondAgent();
+    allowDepth(2);
+
+    $firstHop = exchangeRequest($world['subjectToken'])->assertOk()->json('access_token');
+    downstreamExchange($firstHop)->assertOk();
+
+    // L'utente revoca il consenso dato al PRIMO agente: il secondo non ha una grant
+    // propria da cui attingere, quindi si ferma anche lui.
+    $world['grant']->fill(['status' => DelegationGrantStatus::Revoked->value])->save();
+
+    downstreamExchange($firstHop)->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
+});
+
+it('gli scope si restringono al tetto di OGNI hop, non solo dell\'ultimo', function () {
+    $world = seedExchangeWorld();
+    // La grant concede orders:read; il downstream ha un tetto che NON lo include.
+    seedSecondAgent(['orders:write']);
+    allowDepth(2);
+
+    $firstHop = exchangeRequest($world['subjectToken'])->assertOk()->json('access_token');
+
+    // Intersezione vuota: nessuno scope sopravvive a tutti gli anelli.
+    downstreamExchange($firstHop)->assertStatus(400)->assertJsonPath('error', 'invalid_scope');
+});
+
+it('una catena che rientra su se stessa (A→B→A) e\' rifiutata', function () {
+    $world = seedExchangeWorld();
+    seedSecondAgent();
+    allowDepth(3);
+
+    $firstHop = exchangeRequest($world['subjectToken'])->assertOk()->json('access_token');
+    $secondHop = downstreamExchange($firstHop)->assertOk()->json('access_token');
+
+    // A prova a rientrare nella catena che ha originato lui stesso.
+    exchangeRequest($secondHop)->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
+});
+
+it('oltre max_delegation_depth la catena si ferma', function () {
+    $world = seedExchangeWorld();
+    seedSecondAgent();
+    allowDepth(2);
+
+    $firstHop = exchangeRequest($world['subjectToken'])->assertOk()->json('access_token');
+    $secondHop = downstreamExchange($firstHop)->assertOk()->json('access_token');
+
+    // Il terzo hop supererebbe depth=2. Serve un terzo agente per non incrociare
+    // il rifiuto per ciclo, che e' un motivo diverso.
+    $third = Agent::query()->create([
+        'id' => Agent::newId(), 'name' => 'Third', 'operator' => 'anthropic',
+        'client_id' => 'cli_agent_third', 'max_scopes' => ['orders:read'],
+        'status' => AgentStatus::Active->value,
+    ]);
+    $c = OauthClient::query()->create([
+        'client_id' => 'cli_agent_third', 'name' => 'Third', 'redirect_uris' => [],
+        'grants' => [ActClaim::GRANT_TYPE_TOKEN_EXCHANGE], 'scopes' => ['orders:read'],
+        'is_confidential' => true,
+    ]);
+    $c->secret = Hash::make('third-s3cret');
+    $c->save();
+    expect($third->id)->not->toBeEmpty();
+
+    exchangeRequest($secondHop, ['client_id' => 'cli_agent_third', 'client_secret' => 'third-s3cret'])
+        ->assertStatus(400)->assertJsonPath('error', 'invalid_grant');
 });

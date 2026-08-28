@@ -76,7 +76,9 @@ final class DiscoveryController
         ## What will get you denied
 
         - Forwarding a user token as your own credential (use the exchange).
-        - An `actor_token` (multi-hop delegation is not enabled here).
+        - An `actor_token` — the acting party is identified by your client
+          authentication, so a second, unauthenticated claim of identity is refused.
+        - Extending a chain past `max_delegation_depth`, or re-entering it (A→B→A).
         - A subject token without a live user session behind it.
         - Acting outside your granted scopes, or after the user revoked the grant.
 

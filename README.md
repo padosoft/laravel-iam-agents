@@ -350,7 +350,7 @@ even where the MVP refuses (multi-hop lands in v2 as a non-breaking change).
 | Budget-bounded delegation (grant-level caps, fail-closed guard port) · JIT scope elevation (bound re-consent) | **Active** (v1.1) |
 | Asymmetric kill switch (1 admin to freeze, m-of-n distinct admins to lift) | **Active** (v1.3) |
 | Signed action receipts (JWS the user holds) + "what did my agents do" timeline | **Active** (v1.4) |
-| Multi-hop `act` chains | Emerging (v2) |
+| Multi-hop `act` chains — chaining A→B con intersezione su OGNI hop, catena in `act` annidato (RFC 8693 §4.1), ciclo e profondità rifiutati, la grant radice governa l'intera catena | **Active** (v1.5, `max_delegation_depth` ≥ 2; default 1) |
 | AP2 mandate bridge (checkout/payment), A2A agent cards | Frontier — after real pilots |
 
 ## Ecosystem

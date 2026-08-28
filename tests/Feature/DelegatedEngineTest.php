@@ -145,3 +145,112 @@ it('il check single-subject resta intatto (decorator trasparente)', function () 
     expect($engine->check(['subject' => ['type' => 'user', 'id' => 'u1']])['allowed'])->toBeTrue()
         ->and($engine->check(['subject' => ['type' => 'user', 'id' => 'u2']])['allowed'])->toBeFalse();
 });
+
+/*
+|--------------------------------------------------------------------------
+| Multi-hop: l'intersezione deve valere su OGNI anello della catena
+|--------------------------------------------------------------------------
+*/
+
+it('nega quando un hop NON corrente non e\' autorizzato, non solo quello corrente', function () {
+    // Catena: $current agisce per delega ricevuta da $root (actors[0] = corrente).
+    // L'utente puo', il corrente puo', ma la RADICE no. Se il PDP guardasse solo
+    // l'attore corrente questa passerebbe: sarebbe la delega usata per GUADAGNARE
+    // autorita' che la radice non ha. E' il caso che rende il multi-hop pericoloso
+    // se implementato male, ed e' il test che falliva prima di questo fix.
+    $root = activeAgentRow();
+    $current = activeAgentRow();
+    $chain = new DelegationChain(ActorRef::fromAgentId($current->id), ActorRef::fromAgentId($root->id));
+
+    $decision = engineWith(['user:u1', 'agent:'.$current->id])->checkDelegated(
+        new SubjectRef('user', 'u1'),
+        $chain,
+        ['permission' => 'orders.read'],
+    );
+
+    expect($decision['allowed'])->toBeFalse();
+
+    // Controprova: con la radice autorizzata, la stessa catena passa.
+    expect(engineWith(['user:u1', 'agent:'.$root->id, 'agent:'.$current->id])
+        ->checkDelegated(new SubjectRef('user', 'u1'), $chain, ['permission' => 'orders.read'])['allowed'])
+        ->toBeTrue();
+});
+
+it('cita un sub_decision per OGNI hop, cosi\' l\'auditor puo\' rigiocarli separatamente', function () {
+    $a = activeAgentRow();
+    $b = activeAgentRow();
+
+    $decision = engineWith(['user:u1', 'agent:'.$a->id, 'agent:'.$b->id])->checkDelegated(
+        new SubjectRef('user', 'u1'),
+        // $a e' l'attore CORRENTE (actors[0], il piu' esterno nel claim `act`).
+        new DelegationChain(ActorRef::fromAgentId($a->id), ActorRef::fromAgentId($b->id)),
+        ['permission' => 'orders.read'],
+    );
+
+    expect($decision['actors'])->toBe(['agent:'.$a->id, 'agent:'.$b->id])
+        ->and($decision['sub_decisions']['actors'])->toHaveCount(2)
+        ->and($decision['sub_decisions']['actors'])->toHaveKeys(['agent:'.$a->id, 'agent:'.$b->id])
+        // `actor` resta l'attore CORRENTE: i consumer scritti per il single-hop,
+        // che leggevano una catena da un anello solo, non si rompono.
+        ->and($decision['sub_decisions']['actor'])
+        ->toBe($decision['sub_decisions']['actors']['agent:'.$a->id]);
+});
+
+it('un hop sospeso a meta\' catena ferma tutta la catena', function () {
+    $a = activeAgentRow();
+    $b = activeAgentRow();
+    $a->fill(['status' => AgentStatus::Suspended->value])->save();
+
+    $decision = engineWith(['user:u1', 'agent:'.$a->id, 'agent:'.$b->id])->checkDelegated(
+        new SubjectRef('user', 'u1'),
+        new DelegationChain(ActorRef::fromAgentId($a->id), ActorRef::fromAgentId($b->id)),
+        ['permission' => 'orders.read'],
+    );
+
+    expect($decision['allowed'])->toBeFalse()->and($decision['reason'])->toBe('agent_not_active');
+});
+
+it('requires_step_up si propaga da QUALSIASI hop, non solo dall\'ultimo', function () {
+    $a = activeAgentRow();
+    $b = activeAgentRow();
+
+    // Engine che chiede step-up solo per A (l'hop intermedio).
+    $engine = new DelegatedEngine(
+        new class($a->id) implements AuthorizationEngine
+        {
+            public function __construct(private readonly string $stepUpFor) {}
+
+            public function check(array $query): array
+            {
+                $id = $query['subject']['id'] ?? '';
+
+                return [
+                    'allowed' => true,
+                    'decision_id' => 'dec_'.substr(md5((string) $id), 0, 8),
+                    'policy_version' => 7,
+                    'requires_step_up' => $id === $this->stepUpFor,
+                ];
+            }
+
+            public function listSubjects(string $relation, string $objectType, string $objectId): iterable
+            {
+                return [];
+            }
+
+            public function listResources(SubjectRef $subject, string $relation): iterable
+            {
+                return [];
+            }
+        },
+        app(AgentRegistry::class),
+        app(DelegationGrantStore::class),
+    );
+
+    $decision = $engine->checkDelegated(
+        new SubjectRef('user', 'u1'),
+        new DelegationChain(ActorRef::fromAgentId($a->id), ActorRef::fromAgentId($b->id)),
+        ['permission' => 'orders.read'],
+    );
+
+    expect($decision['requires_step_up'])->toBeTrue();
+});

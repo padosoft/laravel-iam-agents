@@ -70,10 +70,16 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
         // poi non decidono più nulla. Fermare l'emissione e basta lascerebbe una
         // finestra di TTL in cui la flotta "congelata" continua ad agire.
         if ($this->freeze !== null) {
-            try {
-                $this->freeze->assertNotFrozen($chain->current()->subject->id);
-            } catch (DelegationFrozenException $e) {
-                return $this->deny($decisionId, $chain, $e->reason);
+            // Ogni hop, non solo il corrente: congelare l'agente in mezzo alla catena
+            // deve fermare la catena. Se il freeze guardasse solo l'attore finale, un
+            // agente congelato resterebbe utilizzabile delegando a valle — cioè il
+            // kill switch sarebbe aggirabile aggiungendo un hop.
+            foreach ($chain->actors as $actor) {
+                try {
+                    $this->freeze->assertNotFrozen($actor->subject->id);
+                } catch (DelegationFrozenException $e) {
+                    return $this->deny($decisionId, $chain, $e->reason);
+                }
             }
         }
 
@@ -104,10 +110,23 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
         // Intersezione: il check dell'UTENTE e il check dell'AGENTE (stesso engine,
         // stessa query, soggetti diversi). Entrambi devono permettere.
         $subjectDecision = $this->inner->check($this->queryFor($query, $subject));
-        $actorDecision = $this->inner->check($this->queryFor($query, $chain->current()->subject));
 
-        $allowed = ($subjectDecision['allowed'] ?? false) === true
-            && ($actorDecision['allowed'] ?? false) === true;
+        // Intersezione STRETTA su OGNI hop, non solo sull'attore corrente. Con una
+        // catena A→B, controllare il solo B lascerebbe passare un'azione che A non
+        // puo' compiere: la delega diventerebbe un modo per GUADAGNARE autorita'
+        // invece che per restringerla. L'invariante e' `utente ∩ A ∩ B ∩ …`, mai
+        // l'unione, quindi ogni attore deve permettere.
+        $actorDecisions = [];
+        foreach ($chain->actors as $actor) {
+            $actorDecisions[(string) $actor] = $this->inner->check($this->queryFor($query, $actor->subject));
+        }
+
+        $allowed = ($subjectDecision['allowed'] ?? false) === true;
+        $requiresStepUp = ($subjectDecision['requires_step_up'] ?? false) === true;
+        foreach ($actorDecisions as $decision) {
+            $allowed = $allowed && ($decision['allowed'] ?? false) === true;
+            $requiresStepUp = $requiresStepUp || ($decision['requires_step_up'] ?? false) === true;
+        }
 
         return [
             'allowed' => $allowed,
@@ -115,11 +134,21 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
             'actors' => array_map(strval(...), $chain->actors),
             'sub_decisions' => [
                 'subject' => $subjectDecision['decision_id'] ?? null,
-                'actor' => $actorDecision['decision_id'] ?? null,
+                // `actor` resta l'attore corrente per compatibilita' con i consumer
+                // che leggevano una catena a un hop solo; `actors` porta ogni hop,
+                // cosi' un auditor puo' rigiocare separatamente il perche' di ognuno.
+                'actor' => $actorDecisions[(string) $chain->current()]['decision_id'] ?? null,
+                'actors' => array_map(
+                    static function (array $d): ?string {
+                        $id = $d['decision_id'] ?? null;
+
+                        return is_string($id) ? $id : null;
+                    },
+                    $actorDecisions,
+                ),
             ],
             'policy_version' => $subjectDecision['policy_version'] ?? 0,
-            'requires_step_up' => ($subjectDecision['requires_step_up'] ?? false) === true
-                || ($actorDecision['requires_step_up'] ?? false) === true,
+            'requires_step_up' => $requiresStepUp,
         ];
     }
 
