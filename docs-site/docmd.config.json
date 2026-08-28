@@ -91,6 +91,11 @@
           "path": "/guides/budget-and-elevation"
         },
         {
+          "title": "Multi-hop chains",
+          "path": "/guides/multi-hop",
+          "icon": "link"
+        },
+        {
           "title": "Asymmetric kill switch",
           "path": "/guides/kill-switch",
           "icon": "octagon-x"
