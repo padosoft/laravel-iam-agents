@@ -147,7 +147,7 @@ final class TokenExchangeGrant extends AbstractGrant
         // non in coda.
         $chain = new DelegationChain(
             ActorRef::fromAgentId($agent->id),
-            ...($inboundChain?->actors ?? []),
+            ...($inboundChain instanceof DelegationChain ? $inboundChain->actors : []),
         );
         if ($chain->depth() > $this->maxDelegationDepth) {
             $this->refuse($agent->id, null, 'max_delegation_depth_exceeded');

@@ -139,7 +139,11 @@ final class DelegatedEngine implements DelegatedAuthorizationEngine
                 // cosi' un auditor puo' rigiocare separatamente il perche' di ognuno.
                 'actor' => $actorDecisions[(string) $chain->current()]['decision_id'] ?? null,
                 'actors' => array_map(
-                    static fn (array $d): ?string => $d['decision_id'] ?? null,
+                    static function (array $d): ?string {
+                        $id = $d['decision_id'] ?? null;
+
+                        return is_string($id) ? $id : null;
+                    },
                     $actorDecisions,
                 ),
             ],
