@@ -82,3 +82,44 @@ compliance asks for genuine dynamic linking.
   descriptions), purpose, duration, and *"revocable at any time"*.
 - **Revoking never requires step-up.** Granting is hard; ungranting is one click. Any design where
   revocation is harder than consent is a dark pattern and a security bug.
+
+## Preview: what the delegation actually covers
+
+A consent screen that says `orders:read` asks the user to approve a **name**, not
+an effect. Nobody knows which orders those are — and "how many" is exactly the
+question that decides whether the delegation is small or enormous.
+
+`POST /me/delegations/consent-preview` answers it before the challenge:
+
+```json
+{ "agent_id": "agt_01J8…", "relations": ["owner", "editor"] }
+```
+
+```json
+{ "data": {
+  "agent_status": "active",
+  "relations": [
+    { "relation": "owner", "resources": ["order:1042", "order:1043"], "total": 2, "truncated": false }
+  ]
+} }
+```
+
+It runs the PDP's reverse index (`listResources`) over **both** subjects and
+returns the **intersection** — the same invariant the PDP enforces, so the preview
+cannot promise access the decision would refuse.
+
+Three behaviours that are part of the contract, not decoration:
+
+- **Truncation is declared.** `total` and `truncated` always come back. A user
+  with ten thousand orders cannot see them all, but showing ten without saying
+  there are 9,990 more makes a huge delegation look small — worse than showing
+  nothing. Tune with `iam-agents.consent.preview_limit` (default 25).
+- **An empty intersection is the useful answer.** Granting would give access to
+  nothing; the user should learn that *before* consenting.
+- **A non-active agent returns no resources.** Listing them next to a suspended
+  agent would suggest an access that would not happen anyway.
+
+::: callout warning "The preview is not an authorization" icon:triangle-alert
+It is a snapshot taken now; the PDP at request time remains the truth. If
+permissions change between preview and use, the PDP decides — not this list.
+:::
