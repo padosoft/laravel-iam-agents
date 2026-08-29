@@ -145,4 +145,21 @@ return [
         // Middleware del gruppo self-service (/iam/me/delegations). Il guard è dell'app host.
         'middleware' => ['web', 'auth'],
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Access review (IGA)
+    |--------------------------------------------------------------------------
+    |
+    | Le delegation grant sono accessi certificabili nelle access review del server: una campagna
+    | le include con `scope_json.reviewable_types: ["delegation_grant"]`. Qui vive solo la soglia
+    | di dormienza usata per il segnale `dormant` — 30 giorni, non 90 come per i grant RBAC: una
+    | delega ha per costruzione un ciclo di vita più corto, e restare inutilizzata un mese è già
+    | un buon motivo per chiedersi se serva ancora.
+    |
+    */
+    'reviews' => [
+        'unused_days' => (int) env('IAM_AGENTS_REVIEW_UNUSED_DAYS', 30),
+    ],
+
 ];

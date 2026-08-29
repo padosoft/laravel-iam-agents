@@ -309,6 +309,55 @@ guarded on the 0.11 event classes existing, and a run with no delegation context
 rather than given an empty one. An event outside a run gets no correlation at all — never an empty
 id, never an invented parent. Turn it off with `iam-agents.run_correlation`.
 
+## Delegations in the access reviews (v1.5)
+
+A role granted to a person eventually gets revoked, because the person moves team or leaves and the
+organisation has a process that notices. **An agent has no such lifecycle event.** A delegation that
+stopped being necessary six months ago is still there, still valid, still exchangeable for a token,
+and nothing in the ordinary course of business will ever point at it.
+
+So delegation grants become certifiable items in the IAM server's access-review campaigns, next to
+ordinary RBAC/ABAC grants. The module registers itself as a **reviewable source**; the server
+orchestrates the campaign without knowing what a delegation is.
+
+```json
+POST /api/iam/v1/access-reviews/campaigns
+{
+  "name": "Q3 — delegations",
+  "on_unconfirmed": "revoke",
+  "scope_json": { "reviewable_types": ["delegation_grant"] }
+}
+```
+
+Inclusion is **explicit on purpose**: a campaign whose scope does not name `delegation_grant`
+behaves exactly as it always did. Installing a module must not make new items appear inside
+campaigns somebody already planned.
+
+**The delegating user is the reviewer** by default — they gave the consent, and they are the only
+person who actually knows whether the agent is still needed. A `named` strategy overrides that, so a
+compliance function can run the audit centrally.
+
+Each item carries signals meant to answer *"should this still exist?"* before the reviewer has to
+think: `never_used`, `dormant`, `last_used_days`, `expires_in_days`, `agent_status`,
+`agent_suspended`, `scopes_count`, `consent_aal`, `has_budget`. Two are worth spelling out:
+
+- **`last_used_days` comes from the signed receipts**, not from a counter bumped on every touch.
+  Receipts record what the delegation *did*; a token exchange only records that somebody asked.
+- **`agent_suspended` is the case to close first.** A suspended agent still holds live delegations,
+  and lifting the suspension brings them all back with nobody re-confirming anything.
+
+Dormancy defaults to **30 days**, not the 90 used for RBAC grants: a delegation has a shorter
+natural life, and a month of silence is already a reason to ask.
+
+Revoking from a review goes through the grant store, so it audits and fires `DelegationGrantRevoked`
+like any other revocation — the campaign id rides in the metadata, so the revocation is traceable
+back to what caused it. And if the module is ever uninstalled, its items stay `pending` and are
+audited as unrevocable rather than being marked revoked: writing a revocation that never happened is
+the one thing an IGA system cannot afford.
+
+Details: [Access reviews for delegations](https://doc.laravel-iam-agents.padosoft.com/guides/access-review).
+Requires `laravel-iam-server` ≥ 1.27.
+
 ## What will get an agent denied (and tested)
 
 Every one of these is a **negative test in the shipped suite** — security proven, not promised:

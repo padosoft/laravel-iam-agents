@@ -111,6 +111,11 @@
           "icon": "link"
         },
         {
+          "title": "Access reviews for delegations",
+          "path": "/guides/access-review",
+          "icon": "clipboard-check"
+        },
+        {
           "title": "Agentic registration",
           "path": "/guides/agent-registration"
         },
