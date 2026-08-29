@@ -309,7 +309,7 @@ guarded on the 0.11 event classes existing, and a run with no delegation context
 rather than given an empty one. An event outside a run gets no correlation at all — never an empty
 id, never an invented parent. Turn it off with `iam-agents.run_correlation`.
 
-## Delegations in the access reviews (v1.5)
+## Delegations in the access reviews (v1.6)
 
 A role granted to a person eventually gets revoked, because the person moves team or leaves and the
 organisation has a process that notices. **An agent has no such lifecycle event.** A delegation that

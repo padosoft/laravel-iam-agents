@@ -7,7 +7,7 @@ description: "Delegation grants become certifiable items in the IAM access-revie
 
 A delegation grant is a standing permission, given by a human, for an agent to act on their behalf. That is an access — and accesses get re-examined, or they quietly accumulate.
 
-From `laravel-iam-agents` v1.5 the module registers itself as a **reviewable source** in the IAM server's access-review engine (IGA), so a certification campaign can look delegations in the face alongside ordinary RBAC/ABAC grants.
+From `laravel-iam-agents` v1.6 the module registers itself as a **reviewable source** in the IAM server's access-review engine (IGA), so a certification campaign can look delegations in the face alongside ordinary RBAC/ABAC grants.
 
 ::: callout warning "Nobody leaves the company on an agent's behalf"
 A role granted to a person eventually gets revoked because the person moves team or leaves — the organisation has a process that notices. An agent has no such lifecycle event. A delegation that stopped being necessary six months ago is still there, still valid, still exchangeable for a token, and nothing in the ordinary course of business will point at it. That is exactly what a review campaign is for.
