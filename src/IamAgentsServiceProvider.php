@@ -14,6 +14,7 @@ use League\OAuth2\Server\AuthorizationServer;
 use Padosoft\Iam\Agents\Consent\ConsentVerifier;
 use Padosoft\Iam\Agents\Consent\NullConsentVerifier;
 use Padosoft\Iam\Agents\Freeze\DelegationFreezeService;
+use Padosoft\Iam\Agents\Governance\DelegationGrantReviewableSource;
 use Padosoft\Iam\Agents\Grants\DbDelegationGrantStore;
 use Padosoft\Iam\Agents\OAuth\TokenExchangeGrant;
 use Padosoft\Iam\Agents\Pdp\DelegatedEngine;
@@ -31,6 +32,7 @@ use Padosoft\Iam\Contracts\Delegation\DelegatedAuthorizationEngine;
 use Padosoft\Iam\Contracts\Delegation\DelegationGrantStore;
 use Padosoft\Iam\Contracts\Delegation\ElevationNotifier;
 use Padosoft\Iam\Contracts\Identity\SessionRegistry;
+use Padosoft\Iam\Domain\Governance\Reviews\Reviewable\ReviewableRegistry;
 use Padosoft\Iam\Domain\OAuth\Token\TokenIssuanceContext;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -204,6 +206,9 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
             // è la parte che un admin deve sapere in anticipo, non scoprire dopo.
             'kill_switch_lift_quorum' => DelegationFreezeService::configuredQuorum(),
             'action_receipts' => config('iam-agents.receipts.enabled', true) === true,
+            // Il pannello sa così di poter offrire `delegation_grant` fra i tipi certificabili
+            // quando si crea una campagna di access review.
+            'access_review_source' => class_exists(ReviewableRegistry::class),
         ]);
 
         // Migrazioni del modulo (pattern del server: loadMigrationsFrom, disattivabile).
@@ -213,6 +218,16 @@ final class IamAgentsServiceProvider extends PackageServiceProvider
 
         if (!$this->enabled()) {
             return;
+        }
+
+        // IGA — le delegation grant diventano accessi certificabili nelle access review del server.
+        // Registrazione dall'esterno, senza che il core conosca il modulo. Una campagna le include
+        // esplicitamente (`scope_json.reviewable_types`): installare il modulo non fa comparire
+        // deleghe dentro campagne già pianificate.
+        if (class_exists(ReviewableRegistry::class)) {
+            $this->app->make(ReviewableRegistry::class)->register(
+                new DelegationGrantReviewableSource($this->app->make(DelegationGrantStore::class))
+            );
         }
 
         $this->bootRunCorrelation();
